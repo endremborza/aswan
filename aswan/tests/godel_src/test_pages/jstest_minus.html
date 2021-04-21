@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>JS test</title>
+
+</head>
+<body>
+
+Field1: <input type="text" id="field1" value="Bad"><br>
+<p id="field2"></p>
+<p id="field3"></p>
+<p id="field4"></p>
+
+<button id="funbut" onclick="myFunction()">Copy Text</button>
+<button onclick="inc()">INC</button>
+
+<script>
+function myFunction() {
+  var current = new Date();
+  document.getElementById("field2").innerHTML = document.getElementById("field1").value;
+  document.getElementById("field4").innerHTML = -current.getTime();
+}
+
+i = 0
+function inc() {
+  i++
+  document.getElementById("field3").innerHTML = i
+}
+
+</script>
+
+</body>
+</html>
