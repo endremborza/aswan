@@ -24,9 +24,7 @@ def test_godel(tmp_path, godel_test_app):
     json_trepo = TableRepo(
         conf.prod.t2_path / "js", env_parents=conf.t2_root_dic
     )
-    click_trepo = TableRepo(
-        conf.prod.t2_path / "click", env_parents=conf.t2_root_dic
-    )
+    click_trepo = conf.get_prod_table("click")
 
     class JsConc(aswan.RecordsToT2):
         handlers = [ghandlers.JS]

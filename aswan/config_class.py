@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import yaml
+from parquetranger import TableRepo
 
 from .constants import DistApis, Envs
 
@@ -90,6 +91,13 @@ class AswanConfig:
     def save(self, dirpath: str):
         with Path(dirpath, CONFIG_FILE).open("w") as fp:
             yaml.dump(asdict(self), fp)
+
+    def get_prod_table(self, tabname, group_cols=None):
+        return TableRepo(
+            self.prod.t2_path / tabname,
+            env_parents=self.t2_root_dic,
+            group_cols=group_cols,
+        )
 
     @classmethod
     def load(cls, dirpath: str = "."):
