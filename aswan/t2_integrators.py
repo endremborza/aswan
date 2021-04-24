@@ -46,7 +46,7 @@ class FlexibleDfParser(T2Integrator):
                 )
         if not out:
             return
-        new_df = pd.concat(out)
+        new_df = pd.concat(out).pipe(self.proc_df)
         trepo = self.get_t2_table()
         if self.method == "extend":
             trepo.extend(new_df)
@@ -57,6 +57,9 @@ class FlexibleDfParser(T2Integrator):
 
     def url_parser(self, url):
         return {}
+
+    def proc_df(self, df):
+        return df
 
     @abstractmethod
     def get_t2_table(self) -> TableRepo:
