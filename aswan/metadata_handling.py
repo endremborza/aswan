@@ -53,6 +53,7 @@ def get_non_integrated(session: Session) -> List[CollectionEvent]:
     return (
         session.query(CollectionEvent)
         .filter(
+            CollectionEvent.status == Statuses.PROCESSED,
             CollectionEvent.integrated_to_t2 == False  # noqa: E712
         )
         .all()
@@ -76,10 +77,10 @@ def update_surl_status(
     session.commit()
 
 
-def reset_inpro_surls(session: Session):
+def reset_surls(session: Session, statuses: list):
     session.query(SourceUrl).filter(
-        SourceUrl.current_status == Statuses.PROCESSING,
-    ).update({"current_status": Statuses.TODO})
+        SourceUrl.current_status.in_(tuple(statuses))
+    ).update({"current_status": Statuses.TODO}, synchronize_session='fetch')
     session.commit()
 
 
