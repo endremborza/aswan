@@ -11,6 +11,7 @@ from .resources import (
     UrlBaseConnection,
 )
 from .scheduler.resource import Resource
+from .security import DEFAULT_PROXY
 
 if TYPE_CHECKING:
     import requests  # pragma: no cover
@@ -100,8 +101,7 @@ class UrlHandler(_HandlerBase):
         self._registered_links = []
         return out
 
-    @property
-    def resource_needs(self) -> List[Resource]:
+    def get_resource_needs(self, proxy_dic) -> List[Resource]:
         # TODO: maybe needs to be better
         resources = [UrlBaseConnection(self.url_root)]
         if self.needs_browser:
@@ -110,7 +110,15 @@ class UrlHandler(_HandlerBase):
             else:
                 resources.append(BrowserResource())
         if self.proxy_kind is not None:
-            resources.append(ProxyResource(self.proxy_kind))
+            try:
+                proxy_kls = proxy_dic[self.proxy_kind]
+            except KeyError:
+                logger.info(
+                    f"couldn't find proxy {self.proxy_kind}",
+                    available=list(proxy_dic.keys()),
+                )
+                proxy_kls = DEFAULT_PROXY
+            resources.append(ProxyResource(proxy_kls))
         return resources
 
     def set_url(self, url):

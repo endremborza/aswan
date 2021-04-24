@@ -21,7 +21,7 @@ from ..metadata_handling import (
     process_result_queue,
     purge_db,
     register_source_urls,
-    reset_inpro_surls,
+    reset_surls,
     update_surl_status,
 )
 from ..migrate import pull, push
@@ -184,7 +184,7 @@ class Project:
             **{k: v.__name__ for k, v in self._proxy_dic.items()},
         )
 
-    def add_urls_to_handler(self, handler_kls, urls):
+    def add_urls_to_handler(self, handler_kls, urls, overwrite=False):
         with self._get_session() as session:
             register_source_urls(
                 [
@@ -197,7 +197,30 @@ class Project:
                     for url in urls
                 ],
                 session,
+                overwrite=overwrite,
             )
+
+    def reset_surls(
+        self,
+        inprogress=True,
+        parsing_error=False,
+        conn_error=False,
+        sess_broken=False,
+    ):
+        statuses = []
+        for chk, status in zip(
+            [inprogress, parsing_error, conn_error, sess_broken],
+            [
+                Statuses.PROCESSING,
+                Statuses.PARSING_ERROR,
+                Statuses.CONNECTION_ERROR,
+                Statuses.SESSION_BROKEN,
+            ],
+        ):
+            if chk:
+                statuses.append(status)
+        with self._get_session() as session:
+            reset_surls(session, statuses)
 
     def push(self):
         """push prod to remote"""
@@ -222,7 +245,7 @@ class Project:
 
         if self._current_env in [Envs.PROD, Envs.EXP]:
             prep_functions += [
-                self._reset_inprogress_surls,
+                self.reset_surls,
                 self._expire_surls,
                 self._register_starter_urls,
             ]
@@ -288,6 +311,7 @@ class Project:
                         handler=handler,
                         url=url,
                         object_store=self.object_store,
+                        proxy_dic=self._proxy_dic,
                     ).get_scheduler_task()
                 )
         return task_batch
@@ -340,13 +364,9 @@ class Project:
                 n += len(surls)
         return n
 
-    def _reset_inprogress_surls(self):
-        with self._get_session() as session:
-            reset_inpro_surls(session)
-
     def _create_scheduler(self):
 
-        ConnectionSession._proxy_dic = self._proxy_dic
+        ConnectionSession.proxy_dic = self._proxy_dic
 
         self._scheduler = Scheduler(
             actor_frame=ConnectionSession,
@@ -367,12 +387,21 @@ class Project:
             )
 
     def _integrate_to_t2(self):
+        # TODO
+        # can be problem with table extension
+        # if one elem is integrated multiple times
         with self._get_session() as session:
             coll_evs = get_non_integrated(session)
             pcevs = [ParsedCollectionEvent(cev, self) for cev in coll_evs]
             for integrator in self._t2int_dic.values():
                 logger.info(f"running integrator {type(integrator).__name__}")
-                integrator.parse_pcevlist(pcevs)
+                try:
+                    integrator.parse_pcevlist(pcevs)
+                except Exception as e:
+                    logger.warning(
+                        f"integrator raised error: {type(e).__name__}: {e}"
+                    )
+                    return
             for cev in coll_evs:
                 cev.integrated_to_t2 = True
             session.commit()

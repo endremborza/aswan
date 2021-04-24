@@ -17,6 +17,7 @@ from .project.creators import (
     project_from_prod_info,
 )
 from .security.proxy_base import ProxyAuth, ProxyBase
+from .simplified_functions import get_json, get_soup
 from .t2_integrators import (
     ConcatToT2,
     FlexibleDfParser,

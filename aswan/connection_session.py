@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import requests
 from bs4 import BeautifulSoup
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
 from structlog import get_logger
 
@@ -47,20 +48,21 @@ class HandlingTask:
     handler: UrlHandler
     url: str
     object_store: ObjectStoreBase
+    proxy_dic: dict = field(default_factory=dict)
 
     def get_scheduler_task(self) -> SchedulerTask:
         return SchedulerTask(
-            argument=self, resource_needs=self.handler.resource_needs
+            argument=self,
+            resource_needs=self.handler.get_resource_needs(self.proxy_dic),
         )
 
     @property
     def handler_name(self):
-        return type(self.handler).__name__
+        return self.handler.name
 
 
 class ConnectionSession(ActorFrameBase):
-    cpu_needs = 0.5  # 0.33
-    proxy_dic = {}  # this changes in project
+    cpu_needs = 0.5  # 0.33  scheduler checks this too early :(
 
     def __init__(self, resource_needs: List[Resource]):
         super().__init__(resource_needs=resource_needs)
@@ -74,7 +76,7 @@ class ConnectionSession(ActorFrameBase):
                 self.cpu_needs = 1
                 self.headless = isinstance(res, HeadlessBrowserResource)
             if isinstance(res, ProxyResource):
-                self._proxy_kls = self._select_proxy(res.proxy_kind)()
+                self._proxy_kls = res.proxy_kls()
                 self.proxy_host = self._proxy_kls.get_new_host()
 
         self._insess = (
@@ -181,16 +183,6 @@ class ConnectionSession(ActorFrameBase):
                 self._restart()
                 time.sleep(handler.wait_on_initiation_fail)
 
-    def _select_proxy(self, name):
-        try:
-            return self.proxy_dic[name]
-        except AttributeError:
-            logger.info(
-                f"couldn't find proxy {name}",
-                available=list(self.proxy_dic.keys()),
-            )
-            return DEFAULT_PROXY
-
 
 class BrowserSession:
     def __init__(self, headless: bool):
@@ -207,7 +199,10 @@ class BrowserSession:
         self.browser = Chrome(options=chrome_options)
 
     def stop(self):
-        self.browser.close()
+        try:
+            self.browser.close()
+        except WebDriverException:
+            logger.warning("could not stop browser")
 
     def initiate_handler(self, handler: "UrlHandler"):
         handler.start_browser_session(self.browser)
