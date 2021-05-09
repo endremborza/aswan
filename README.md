@@ -78,31 +78,18 @@ add_init_urls()
 project.run(with_monitor_process=True)
 ```
 
->    2021-05-09 22:13.42 [info     ] running function reset_surls   env=prod function_batch=run_prep
->  ...
->    2021-05-09 22:13.45 [info     ] ray dashboard: http://127.0.0.1:8266
->  ...
->    2021-05-09 22:13.45 [info     ]  monitor app at: http://localhost:6969
-> ...
-
+```
+    2021-05-09 22:13.42 [info     ] running function reset_surls   env=prod function_batch=run_prep
+    ...
+    2021-05-09 22:13.45 [info     ] ray dashboard: http://127.0.0.1:8266
+    ...
+    2021-05-09 22:13.45 [info     ]  monitor app at: http://localhost:6969
+    ...
+```
 
 ```python
 movie_table.get_full_df()
 ```
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -127,27 +114,11 @@ movie_table.get_full_df()
     </tr>
   </tbody>
 </table>
-</div>
-
 
 
 ```python
 celeb_table.get_full_df()
 ```
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -194,7 +165,6 @@ celeb_table.get_full_df()
     </tr>
   </tbody>
 </table>
-</div>
 
 
 
