@@ -6,6 +6,7 @@ from structlog import get_logger
 
 from .resources import (
     BrowserResource,
+    EagerBrowserResource,
     HeadlessBrowserResource,
     ProxyResource,
     UrlBaseConnection,
@@ -55,6 +56,7 @@ class _HandlerBase:
 class UrlHandler(_HandlerBase):
     needs_browser: bool = False
     headless: bool = False
+    eager: bool = False
     parses_raw: bool = False
     parses_json: bool = False
 
@@ -109,6 +111,8 @@ class UrlHandler(_HandlerBase):
                 resources.append(HeadlessBrowserResource())
             else:
                 resources.append(BrowserResource())
+            if self.eager:
+                resources.append(EagerBrowserResource())
         if self.proxy_kind is not None:
             try:
                 proxy_kls = proxy_dic[self.proxy_kind]

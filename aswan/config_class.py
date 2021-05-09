@@ -99,6 +99,21 @@ class AswanConfig:
             group_cols=group_cols,
         )
 
+    def export_remote_trepos(self, fpath, trepos, append=False):
+        flines = []
+        if not append:
+            flines.append("from parquetranger import TableRepo")
+
+        for trepo in trepos:
+            gcol = trepo.group_cols
+            if isinstance(gcol, str):
+                gcol = f'"{gcol}"'
+            _fpath = f"{self.remote_root}/t2/{trepo.name}"
+            flines.append(
+                f'{trepo.name} = TableRepo("{_fpath}"' f", group_cols={gcol})"
+            )
+        Path(fpath).write_text("\n\n".join(flines))
+
     @classmethod
     def load(cls, dirpath: str = "."):
         with Path(dirpath, CONFIG_FILE).open() as fp:

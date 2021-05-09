@@ -8,12 +8,18 @@ import requests
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from structlog import get_logger
 
 from .constants import HEADERS, Statuses
 from .exceptions import BrokenSessionError, RequestError
 from .object_store import ObjectStoreBase
-from .resources import BrowserResource, HeadlessBrowserResource, ProxyResource
+from .resources import (
+    BrowserResource,
+    EagerBrowserResource,
+    HeadlessBrowserResource,
+    ProxyResource,
+)
 from .scheduler import ActorFrameBase, SchedulerTask
 from .scheduler.resource import Resource
 from .security import DEFAULT_PROXY
@@ -62,12 +68,13 @@ class HandlingTask:
 
 
 class ConnectionSession(ActorFrameBase):
-    cpu_needs = 0.5  # 0.33  scheduler checks this too early :(
+    cpu_needs = 0.33  # 0.33  scheduler checks this too early :(
 
     def __init__(self, resource_needs: List[Resource]):
         super().__init__(resource_needs=resource_needs)
         self.is_browser = False
         self.headless = False
+        self.eager = False
         self._proxy_kls = DEFAULT_PROXY()
         self.proxy_host = None
         for res in resource_needs:
@@ -75,16 +82,17 @@ class ConnectionSession(ActorFrameBase):
                 self.is_browser = True
                 self.cpu_needs = 1
                 self.headless = isinstance(res, HeadlessBrowserResource)
+            if isinstance(res, EagerBrowserResource):
+                self.eager = True
             if isinstance(res, ProxyResource):
                 self._proxy_kls = res.proxy_kls()
                 self.proxy_host = self._proxy_kls.get_new_host()
 
         self._insess = (
-            BrowserSession(self.headless)
+            BrowserSession(self.headless, self.eager)
             if self.is_browser
             else RequestSession()
         )
-
         self._initiated_handlers = set()
         self._broken_handlers = set()
         self._num_queries = 0
@@ -185,18 +193,24 @@ class ConnectionSession(ActorFrameBase):
 
 
 class BrowserSession:
-    def __init__(self, headless: bool):
+    def __init__(self, headless: bool, eager: bool):
         self._headless = headless
+        self._eager = eager
         self.browser: Optional[Chrome] = None
 
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
         chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
+        caps = DesiredCapabilities().CHROME
         if self._headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--no-sandbox")  # linux only
             chrome_options.add_argument("--headless")
-        self.browser = Chrome(options=chrome_options)
+        if self._eager:
+            caps["pageLoadStrategy"] = "eager"
+        self.browser = Chrome(
+            options=chrome_options, desired_capabilities=caps
+        )
 
     def stop(self):
         try:

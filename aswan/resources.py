@@ -12,13 +12,17 @@ class HeadlessBrowserResource(Resource):
     pass
 
 
+class EagerBrowserResource(Resource):
+    pass
+
+
 class BrowserResource(Resource):
     pass
 
 
 class ProxyResource(Resource):
-    def __init__(self, proxy_kind: str):
-        self.proxy_kind = proxy_kind
+    def __init__(self, proxy_kls):
+        self.proxy_kls = proxy_kls
 
 
 class Limit(ResourceLimit):
