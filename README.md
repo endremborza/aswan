@@ -54,6 +54,10 @@ project.register_t2_table(movie_table)
 @project.register_t2_integrator
 class MovieIntegrator(aswan.FlexibleDfParser):
     handlers = [MovieHandler]
+
+    def url_parser(self, url):
+        return {"id": url.split("/")[-1]}
+
     def get_t2_table(self):
         return movie_table
 
@@ -97,20 +101,23 @@ movie_table.get_full_df()
       <th>title</th>
       <th>summary</th>
       <th>year</th>
+      <th>id</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <th>0</th>
-      <td>I Love You Phillip Morris (2009)</td>
-      <td>A cop turns con man once he comes out of the c...</td>
-      <td>2009</td>
+      <td>Arrival (2016)</td>
+      <td>A linguist works with the military to communicate with alien lifeforms after twelve mysterious spacecraft appear around the world.</td>
+      <td>2016</td>
+      <td>tt2543164</td>
     </tr>
     <tr>
       <th>0</th>
-      <td>Arrival (2016)</td>
-      <td>A linguist works with the military to communic...</td>
-      <td>2016</td>
+      <td>I Love You Phillip Morris (2009)</td>
+      <td>A cop turns con man once he comes out of the closet. Once imprisoned, he meets the second love of his life, whom he'll stop at nothing to be with.</td>
+      <td>2009</td>
+      <td>tt1045772</td>
     </tr>
   </tbody>
 </table>
