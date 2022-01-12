@@ -8,8 +8,6 @@ license = "MIT"
 readme = "README.md"
 python = ">=3.7"
 url = "https://github.com/endremborza/aswan"
-boilerplate_branch="master"
-keyowrds="data-lake"
 [build-system]
 requires = [
     "toml >= 0.10.0",
@@ -18,4 +16,4 @@ requires = [
     "setuptools_scm >= 2.0.0, <3"
 ]
 [tool.bran]
-line-length=79
+line-length = 79
