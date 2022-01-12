@@ -46,13 +46,3 @@ class Envs:
     @classmethod
     def all(cls):
         return [cls.PROD, cls.EXP, cls.TEST]
-
-
-class DistApis:
-
-    SYNC = "sync"
-    RAY = "ray"
-
-    @classmethod
-    def default(cls):
-        return cls.SYNC
