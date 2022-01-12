@@ -180,11 +180,17 @@ celeb_table.get_full_df()
 
 will probably need to separate a few things from it:
 - t2extractor
+  - unstructured json to tabular data automatically
+  - aswan.t2.extractor
 - scheduler
 
 TODO
-- cleanup reqirements
+- dvc integration
+- export to dataset template
+  - maybe part of the dataset
+- cleanup requirements
 - s3, scp for push/pull
+- add verified invalid output that is not parsing error
 - selective push / pull
   - with possible nuking of remote archive
   - cleaning local obj store (when envs blow up, ide dies)
