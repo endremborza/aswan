@@ -34,12 +34,16 @@ def update_metrics(store_data):
     _proc_in_1_hour = round(
         _vc.get(Statuses.PROCESSED, 0) * 60 / LAST_N_MINS, 2
     )
+    _todo_in_hours = round(
+        _vc.get(Statuses.TODO, 0) / (_proc_in_1_hour or 0.1), 2
+    )
     info_span = [
         html.P(f"statuses in last {LAST_N_MINS} minutes: {_vc}"),
         html.P(
             f"projection for 1 hour: {_proc_in_1_hour} -"
             f" ({24 * _proc_in_1_hour} / day)"
         ),
+        html.P(f"all todos in {_todo_in_hours} hours"),
     ]
     trs = []
     for cev in coll_evs:
