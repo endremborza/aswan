@@ -3,7 +3,7 @@ from typing import Optional
 from .connection_session import ConnectionSession
 from .url_handler import UrlHandler, UrlJsonHandler
 
-_cs = ConnectionSession([])
+_cs = ConnectionSession()
 
 
 class _SH(UrlHandler):
@@ -16,8 +16,14 @@ class _JH(UrlJsonHandler):
         return d
 
 
-def get_soup(url: str, params: Optional[dict] = None):
-    return _cs.get_parsed_response(_SH(), url, params)
+def get_soup(url: str, params: Optional[dict] = None, browser=False):
+    _lcs = _cs
+    if browser:
+        _lcs = ConnectionSession(browser=True)
+    out = _lcs.get_parsed_response(_SH(), url, params)
+    if browser:
+        _lcs.stop()
+    return out
 
 
 def get_json(url: str, params: Optional[dict] = None):

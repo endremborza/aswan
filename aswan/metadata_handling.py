@@ -49,15 +49,21 @@ def get_next_surl_batch(batch_size: int, session: Session) -> List[SourceUrl]:
     )
 
 
-def get_non_integrated(session: Session) -> List[CollectionEvent]:
-    return (
-        session.query(CollectionEvent)
-        .filter(
-            CollectionEvent.status == Statuses.PROCESSED,
-            CollectionEvent.integrated_to_t2 == False  # noqa: E712
-        )
-        .all()
-    )
+def get_non_integrated(
+    session: Session,
+    all_processed=False,
+    only_latest: bool = True,
+) -> List[CollectionEvent]:
+
+    filters = [CollectionEvent.status == Statuses.PROCESSED]
+    if not all_processed:
+        filters.append(CollectionEvent.integrated_to_t2 == False)  # noqa: E712
+
+    query = session.query(CollectionEvent).filter(*filters)
+    if only_latest:
+        query = _to_latest(query)
+
+    return query.all()
 
 
 def update_surl_status(
@@ -65,7 +71,7 @@ def update_surl_status(
     url: str,
     status: str,
     session: Session,
-    expiry_seconds: int = None
+    expiry_seconds: int = None,
 ):
     update_dic = {"current_status": status}
     if expiry_seconds is not None:
@@ -80,7 +86,7 @@ def update_surl_status(
 def reset_surls(session: Session, statuses: list):
     session.query(SourceUrl).filter(
         SourceUrl.current_status.in_(tuple(statuses))
-    ).update({"current_status": Statuses.TODO}, synchronize_session='fetch')
+    ).update({"current_status": Statuses.TODO}, synchronize_session="fetch")
     session.commit()
 
 
@@ -102,7 +108,7 @@ def process_result_queue(
             uh_result.url,
             uh_result.status,
             session,
-            uh_result.expiration_seconds
+            uh_result.expiration_seconds,
         )
         session.add(
             CollectionEvent(
@@ -130,23 +136,7 @@ def get_handler_events(
         CollectionEvent.handler == handler.__name__
     )
     if only_latest:
-        subq = (
-            session.query(
-                CollectionEvent.url.label("curl"),
-                func.max(CollectionEvent.timestamp).label("maxtimestamp"),
-            )
-            .filter(CollectionEvent.handler == handler.__name__)
-            .group_by(CollectionEvent.url)
-            .subquery()
-        )
-
-        base_q = base_q.join(
-            subq,
-            and_(
-                CollectionEvent.url == subq.c.curl,
-                CollectionEvent.timestamp == subq.c.maxtimestamp,
-            ),
-        )
+        base_q = _to_latest(base_q)
     if only_successful:
         base_q = base_q.filter(CollectionEvent.status == Statuses.PROCESSED)
     if limit:
@@ -199,3 +189,23 @@ def purge_db(session: Session):
     session.query(CollectionEvent).delete()
     session.query(SourceUrl).delete()
     session.commit()
+
+
+def _to_latest(base_query):
+
+    subq = (
+        base_query.group_by(CollectionEvent.url)
+        .add_columns(
+            CollectionEvent.url.label("curl"),
+            func.max(CollectionEvent.timestamp).label("maxtimestamp"),
+        )
+        .subquery()
+    )
+
+    return base_query.join(
+        subq,
+        and_(
+            CollectionEvent.url == subq.c.curl,
+            CollectionEvent.timestamp == subq.c.maxtimestamp,
+        ),
+    )

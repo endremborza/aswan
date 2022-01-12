@@ -4,16 +4,6 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, Type, Union
 
 from structlog import get_logger
 
-from .resources import (
-    BrowserResource,
-    EagerBrowserResource,
-    HeadlessBrowserResource,
-    ProxyResource,
-    UrlBaseConnection,
-)
-from .scheduler.resource import Resource
-from .security import DEFAULT_PROXY
-
 if TYPE_CHECKING:
     import requests  # pragma: no cover
     from bs4 import BeautifulSoup  # pragma: no cover
@@ -62,27 +52,27 @@ class UrlHandler(_HandlerBase):
 
     def __init__(self):
         self._registered_links = []
-        # self.register_links_to_handler(self.starter_urls)
+        # self.register_links_to_handler(self.starter_urls)  ??
         self._url: Optional[str] = None
         self.expiration_seconds = self.default_expiration
 
     def parse_soup(self, soup: "BeautifulSoup"):
-        """ parse bs4 soup"""
+        """parse bs4 soup"""
 
     def parse_json(self, obj: Union[list, dict]):
-        """ if parses_json is true"""
+        """if parses_json is true"""
 
     def parse_raw(self, s: str):
-        """ if parses_raw is true"""
+        """if parses_raw is true"""
 
     def handle_browser(self, driver: "Chrome"):
-        """ if returns something, parse soup is not called"""
+        """if returns something, parse soup is not called"""
 
     def start_rsession(self, rsession: "requests.Session"):
-        """ starts session if no browser needed"""
+        """starts session if no browser needed"""
 
     def start_browser_session(self, browser: "Chrome"):
-        """ start session if browser is needed"""
+        """start session if browser is needed"""
 
     def register_links_to_handler(
         self,
@@ -103,28 +93,6 @@ class UrlHandler(_HandlerBase):
         self._registered_links = []
         return out
 
-    def get_resource_needs(self, proxy_dic) -> List[Resource]:
-        # TODO: maybe needs to be better
-        resources = [UrlBaseConnection(self.url_root)]
-        if self.needs_browser:
-            if self.headless:
-                resources.append(HeadlessBrowserResource())
-            else:
-                resources.append(BrowserResource())
-            if self.eager:
-                resources.append(EagerBrowserResource())
-        if self.proxy_kind is not None:
-            try:
-                proxy_kls = proxy_dic[self.proxy_kind]
-            except KeyError:
-                logger.info(
-                    f"couldn't find proxy {self.proxy_kind}",
-                    available=list(proxy_dic.keys()),
-                )
-                proxy_kls = DEFAULT_PROXY
-            resources.append(ProxyResource(proxy_kls))
-        return resources
-
     def set_url(self, url):
         self._url = url
 
@@ -135,7 +103,7 @@ class UrlHandler(_HandlerBase):
         self.expiration_seconds = self.default_expiration
 
     @classmethod
-    def extend_link(cls, link) -> str:
+    def extend_link(cls, link: str) -> str:
         # TODO: this is shit
         if cls.url_root is None:
             return link

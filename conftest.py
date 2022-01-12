@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 
 from aswan.tests.godel_src.app import AppRunner
 from aswan.models import Base
-from aswan.constants import DistApis
-
+from aswan.config_class import DEFAULT_DIST_API, DEFAULT_PROD_DIST_API
 import pytest
 
 
@@ -15,7 +14,7 @@ def godel_test_app(request):
     request.addfinalizer(ar.stop)
 
 
-@pytest.fixture(params=[DistApis.default()], ids=[DistApis.default()])
+@pytest.fixture(params=[DEFAULT_DIST_API], ids=[DEFAULT_DIST_API])
 def dist_api_key(request):
     return request.param
 

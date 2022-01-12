@@ -3,11 +3,12 @@ import random
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Type
 
+from atqo import Capability
 from selenium.webdriver import ChromeOptions
 
-from ..constants import CONFIG_PATH
+from ..constants import CONFIG_PATH, ONE_YEAR
 from .proxy_utils import get_chrome_options
 
 
@@ -19,7 +20,10 @@ class ProxyAuth:
 
 class ProxyBase:
 
-    expiration_secs = 7 * 24 * 60 * 60
+    name = None
+    max_at_once = None
+
+    expiration_secs = ONE_YEAR
     max_num_at_once = float("inf")
 
     prefix = "http"
@@ -88,3 +92,21 @@ class NoProxy(ProxyBase):
 
     def _load_host_list(self) -> list:
         return [None]
+
+
+DEFAULT_PROXY = NoProxy
+
+
+class ProxyData:
+    def __init__(self, kls: Type[ProxyBase] = DEFAULT_PROXY) -> None:
+        self.kls = kls
+        self.name = kls.name or kls.__name__
+        self.res_id = f"proxy-resource-{self.name}"
+        self.limit = kls.max_at_once
+        in_cap = {}
+        if self.limit:
+            in_cap[self.res_id] = 1
+        self.cap = Capability(in_cap)
+
+    def __repr__(self) -> str:
+        return f"Proxy({self.name})"
