@@ -80,7 +80,7 @@ class ParsedObject:
                 keybranch_tuple, obj, record_keybranch_so_far
             )
         except KeyError as e:
-            logger.warning(f"KeyError: {e} key not in object {obj}")
+            logger.warning(f"KeyError: {e} key not in object {type(obj)}")
         return self
 
     def _integrate_key_branch_of_object(
