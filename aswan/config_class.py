@@ -5,13 +5,15 @@ from typing import Optional, Union
 import yaml
 from parquetranger import TableRepo
 
-from .constants import DistApis, Envs
+from .constants import Envs
 
 CONFIG_FILE = "aswanconfig.yaml"
 DEFAULT_REMOTE = "aswan-data"
 DEFAULT_PROD_BATCH_SIZE = 40
 DEFAULT_PROD_MIN_QUEUE_SIZE = DEFAULT_PROD_BATCH_SIZE // 2
 DEFAULT_BATCH_SIZE = 10
+DEFAULT_PROD_DIST_API = "ray"
+DEFAULT_DIST_API = "sync"
 
 
 @dataclass
@@ -20,7 +22,7 @@ class EnvConfig:
     object_store: str
     t2_root: str
 
-    distributed_api: str = DistApis.default()
+    distributed_api: str = DEFAULT_DIST_API
     min_queue_size: int = 0
     batch_size: int = DEFAULT_BATCH_SIZE
 
@@ -53,7 +55,7 @@ class ProdConfig(EnvConfig):
     object_store: str
     t2_root: str
 
-    distributed_api: str = DistApis.RAY
+    distributed_api: str = DEFAULT_PROD_DIST_API
     min_queue_size: int = DEFAULT_PROD_MIN_QUEUE_SIZE
     batch_size: int = DEFAULT_PROD_BATCH_SIZE
 
@@ -98,21 +100,6 @@ class AswanConfig:
             env_parents=self.t2_root_dic,
             group_cols=group_cols,
         )
-
-    def export_remote_trepos(self, fpath, trepos, append=False):
-        flines = []
-        if not append:
-            flines.append("from parquetranger import TableRepo")
-
-        for trepo in trepos:
-            gcol = trepo.group_cols
-            if isinstance(gcol, str):
-                gcol = f'"{gcol}"'
-            _fpath = f"{self.remote_root}/t2/{trepo.name}"
-            flines.append(
-                f'{trepo.name} = TableRepo("{_fpath}"' f", group_cols={gcol})"
-            )
-        Path(fpath).write_text("\n\n".join(flines))
 
     @classmethod
     def load(cls, dirpath: str = "."):
