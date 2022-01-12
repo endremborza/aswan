@@ -1,11 +1,11 @@
 import hashlib
 import json
-import os
 import pickle
 import tarfile
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional, Union
 
 import s3fs
@@ -54,6 +54,10 @@ class ObjectStoreBase(ABC):
             fp.write(buf)
         return full_path.replace(self._root + "/", "", 1)
 
+    def dump_tar(self, tarpath: Path):
+        with tarfile.open(tarpath, "r:gz") as tar:
+            tar.extractall(self._root)
+
     def read_json(self, path: str) -> Union[list, dict]:
         return json.loads(self.read_str(path))
 
@@ -97,11 +101,11 @@ class LocalObjectStore(ObjectStoreBase):
 
     def purge(self):
         for p, _ in self._local_iter():
-            os.unlink(p)
+            Path(p).unlink()
 
     def _local_iter(self):
-        for p in os.listdir(self._root):
-            yield (os.path.join(self._root, p), p)
+        for p in Path(self._root).iterdir():
+            yield (p.as_posix(), p.name)
 
 
 class S3ObjectStore(ObjectStoreBase):
