@@ -17,3 +17,5 @@ requires = [
     "wheel >= 0.31.0",
     "setuptools_scm >= 2.0.0, <3"
 ]
+[tool.bran]
+line-length=79
