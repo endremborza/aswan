@@ -1,5 +1,3 @@
-pandas
-numpy
 requests
 dash-bootstrap-components
 beautifulsoup4
@@ -7,20 +5,10 @@ html5lib
 tqdm
 s3fs
 selenium
-jupyter
-ray
-flask
 dash
 sqlalchemy
-pysocks
-python-dotenv
 structlog
-python-Levenshtein
-cython
-scipy
 pyyaml
-pyarrow
 cookiecutter
-pandas-profiling
 parquetranger
-dask[complete]
+atqo[complete]
