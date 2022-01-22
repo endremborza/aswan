@@ -59,7 +59,7 @@ class Project:
             adds starter_urls
     """
 
-    def __init__(self, config: Optional[AswanConfig] = None):
+    def __init__(self, config: Optional[AswanConfig] = None, debug=False):
 
         self.config = config or AswanConfig.default_from_dir(Path.cwd())
         self._current_env = Envs.PROD
@@ -80,6 +80,7 @@ class Project:
 
         self._proxy_dic = {UrlHandler.proxy_kind: ProxyData()}
         self._ran_once = False
+        self.debug = debug
 
     def set_env(self, env: str):
         """set env to prod/exp/test
@@ -387,6 +388,7 @@ class Project:
             actor_dict=actor_dict,
             resource_limits=self.resource_limits,
             distributed_system=self.env_config.distributed_api,
+            verbose=self.debug,
         )
 
     def _get_handler_events(
