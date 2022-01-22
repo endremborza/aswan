@@ -1,4 +1,5 @@
 import json
+import sys
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -213,6 +214,8 @@ class BrowserSession:
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
         chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
         caps = DesiredCapabilities().CHROME
+        if sys.platform == "linux":
+            chrome_options.add_argument("--disable-dev-shm-usage")
         if self._headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
