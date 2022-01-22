@@ -216,13 +216,14 @@ class BrowserSession:
         caps = DesiredCapabilities().CHROME
         if sys.platform == "linux":
             chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--no-sandbox")  # linux only
         if self._headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--no-sandbox")  # linux only
             chrome_options.add_argument("--headless")
         if self._eager:
             caps["pageLoadStrategy"] = "eager"
+        logger.info(f"launching browser: {chrome_options.arguments}")
         self.browser = Chrome(
             options=chrome_options, desired_capabilities=caps
         )
