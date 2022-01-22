@@ -10,7 +10,7 @@ class REnum(Enum):
 
 
 class Caps:
-    simple = Capability({REnum.mCPU: 250})
-    eager_browser = Capability({REnum.mCPU: 750})
-    normal_browser = Capability({REnum.mCPU: 750})
-    display = Capability({REnum.DISPLAY: 1, REnum.mCPU: 250})
+    simple = Capability({REnum.mCPU: 250}, "con")
+    eager_browser = Capability({REnum.mCPU: 750}, "eag")
+    normal_browser = Capability({REnum.mCPU: 750}, "bro")
+    display = Capability({REnum.DISPLAY: 1, REnum.mCPU: 250}, "dsp")
