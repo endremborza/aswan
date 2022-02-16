@@ -32,7 +32,7 @@ def test_partial(tmp_path):
     conf = AswanConfig.default_from_dir(tmp_path, prod_t2_root=prod_t2)
     project = project_from_prod_info(dirpath=tmp_path, prod_t2_root=prod_t2)
     assert conf == project.config
-    assert conf.prod.t2_root == str(prod_t2)
+    assert conf.prod.t2_root == prod_t2.as_posix()
 
 
 def test_prodconf(tmp_path):

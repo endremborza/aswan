@@ -87,8 +87,8 @@ class ObjectStoreBase(ABC):
 
     @contextmanager
     def tarcontext(self):
-        with tempfile.NamedTemporaryFile() as tfp:
-            tarpath = tfp.name
+        with tempfile.TemporaryDirectory() as tfd:
+            tarpath = Path(tfd) / 'temp'
             with tarfile.open(tarpath, "w:gz") as tar:
                 for local_abs_path, name in self._local_iter():
                     tar.add(local_abs_path, arcname=name)
