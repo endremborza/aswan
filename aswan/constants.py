@@ -16,7 +16,7 @@ HEADERS = {
 N_PROCESSES = cpu_count() * 2
 
 CONFIG_PATH = Path.home() / ".config" / "aswan"
-CONFIG_PATH.mkdir(exist_ok=True)
+CONFIG_PATH.mkdir(exist_ok=True, parents=True)
 
 url_root_regex = re.compile(r"^(?://|[^/]+)*/")
 
