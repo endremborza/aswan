@@ -1,11 +1,8 @@
-import os
-import sys
 from contextlib import contextmanager
 from multiprocessing import Process, cpu_count
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
-import sqlalchemy as db
 from atqo import Scheduler
 from parquetranger import TableRepo
 from structlog import get_logger
@@ -26,9 +23,8 @@ from ..metadata_handling import (
     update_surl_status,
 )
 from ..migrate import pull, push
-from ..models import Base, CollectionEvent, SourceUrl
-from ..monitor_dash.app import get_monitor_app
-from ..object_store import get_object_store
+from ..models import CollectionEvent, SourceUrl
+from ..monitor_dash.app import run_monitor_app
 from ..resources import REnum
 from ..security import ProxyData
 from ..security.proxy_base import ProxyBase
@@ -67,13 +63,7 @@ class Project:
         self._t2int_dic: Dict[str, "T2Integrator"] = {}
         self._t2_tables: Dict[str, TableRepo] = {}
 
-        self._engines = {}
-        self._obj_stores = {}
-        for name, envconf in self.config.env_items():
-            _engine = db.create_engine(envconf.db)
-            Base.metadata.create_all(_engine)
-            self._engines[name] = _engine
-            self._obj_stores[name] = get_object_store(envconf.object_store)
+        self._engines, self._obj_stores = self.config.get_db_dicts()
 
         self._scheduler: Optional[Scheduler] = None
         self._monitor_app_process: Optional[Process] = None
@@ -137,8 +127,8 @@ class Project:
 
     def start_monitor_process(self, port_no=6969):
         self._monitor_app_process = Process(
-            target=self._run_monitor_app,
-            kwargs={"port_no": port_no},
+            target=run_monitor_app,
+            kwargs={"port_no": port_no, "conf": self.config},
         )
         self._monitor_app_process.start()
         logger.info(f" monitor app at: http://localhost:{port_no}")
@@ -283,13 +273,6 @@ class Project:
         if with_monitor_process:
             cleanup_functions.append(self.stop_monitor_process)
         run_and_log_functions(cleanup_functions, function_batch="run_cleanup")
-
-    def _run_monitor_app(self, port_no=6969):
-        sys.stdout = open(os.devnull, "w")
-        sys.stderr = open(os.devnull, "w")
-        get_monitor_app(self._engines, self._obj_stores).run_server(
-            port=port_no, debug=False
-        )
 
     def _get_next_batch(self):
         if self._ran_once and (not self.env_config.keep_running):

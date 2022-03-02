@@ -1,13 +1,14 @@
 import datetime as dt
+import os
+import sys
 import time
 from typing import Dict
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import dcc
-from dash import html
 import pandas as pd
 import plotly.graph_objects as go
+from dash import dcc, html
 from dash.dependencies import Input, Output
 from sqlalchemy import func
 from sqlalchemy.engine import Engine
@@ -203,10 +204,10 @@ class MonitorApp:
         }
 
 
-def get_monitor_app(
-    engine_dict: Dict[str, Engine],
-    object_stores: Dict[str, ObjectStoreBase],
-    refresh_interval_secs=30,
-):
-
-    return MonitorApp(engine_dict, object_stores, refresh_interval_secs).app
+def run_monitor_app(conf, port_no=6969, refresh_interval_secs=30):
+    sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
+    _engines, _obj_stores = conf.get_db_dicts()
+    MonitorApp(_engines, _obj_stores, refresh_interval_secs).app.run_server(
+        port=port_no, debug=False
+    )

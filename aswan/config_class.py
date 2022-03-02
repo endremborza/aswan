@@ -2,10 +2,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional, Union
 
+import sqlalchemy as db
 import yaml
 from parquetranger import TableRepo
 
 from .constants import Envs
+from .models import Base
+from .object_store import get_object_store
 
 CONFIG_FILE = "aswanconfig.yaml"
 DEFAULT_REMOTE = "aswan-data"
@@ -100,6 +103,15 @@ class AswanConfig:
             env_parents=self.t2_root_dic,
             group_cols=group_cols,
         )
+
+    def get_db_dicts(self):
+        _engines, _obj_stores = {}, {}
+        for name, envconf in self.env_items():
+            _engine = db.create_engine(envconf.db)
+            Base.metadata.create_all(_engine)
+            _engines[name] = _engine
+            _obj_stores[name] = get_object_store(envconf.object_store)
+        return _engines, _obj_stores
 
     @classmethod
     def load(cls, dirpath: str = "."):
