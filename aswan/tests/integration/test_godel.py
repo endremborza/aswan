@@ -72,7 +72,7 @@ def test_godel(tmp_path, godel_test_app):
     assert cldf["field4"].iloc[0] == 1000
 
     godel_project.set_env(aswan.Envs.PROD)
-    godel_project.run()
+    godel_project.run(with_monitor_process=True)
 
     found = [
         pcev.content["main"]
