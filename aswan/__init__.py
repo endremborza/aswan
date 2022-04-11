@@ -1,4 +1,5 @@
 # flake8: noqa
+"""Data collection manager"""
 from ._version import __version__
 from .config_class import AswanConfig, EnvConfig, ProdConfig
 from .constants import (
@@ -25,3 +26,5 @@ from .t2_integrators import (
     T2Integrator,
 )
 from .url_handler import UrlHandler, UrlJsonHandler
+
+__version__ = "0.0.0"
