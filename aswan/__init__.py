@@ -14,4 +14,4 @@ from .simplified_functions import get_json, get_soup
 from .t2_integrators import ConcatToT2, FlexibleDfParser, RecordsToT2, T2Integrator
 from .url_handler import UrlHandler, UrlJsonHandler
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
