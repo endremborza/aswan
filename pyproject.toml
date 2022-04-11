@@ -19,12 +19,13 @@ dependencies = [
     "pyyaml",
     "cookiecutter",
     "parquetranger",
-    "atqo[ray,fancy]",
+    "atqo",
 ]
 
 [project.optional-dependencies]
 test = ["branthebuilder"]
 doc = ["branthebuilder[doc]"]
+parallel = ["atqo[ray,fancy]"]
 
 [project.urls]
 Homepage = "https://github.com/endremborza/aswan"
