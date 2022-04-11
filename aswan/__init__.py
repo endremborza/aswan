@@ -1,1 +1,3 @@
-from ._version import __version__  # noqa: F401
+"""Data collection manager"""
+
+__version__ = "0.0.0"
