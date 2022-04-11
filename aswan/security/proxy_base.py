@@ -48,8 +48,7 @@ class ProxyBase:
             proxy_constring = f"{self.prefix}://{host}:{self.port_no}"
         else:
             proxy_constring = (
-                f"{self.prefix}://{auth.user}:"
-                f"{auth.password}@{host}:{self.port_no}"
+                f"{self.prefix}://{auth.user}:" f"{auth.password}@{host}:{self.port_no}"
             )
         return {"http": proxy_constring, "https": proxy_constring}
 
@@ -68,9 +67,7 @@ class ProxyBase:
     def _update_hosts(self):
         ppath = self._get_path()
         try:
-            expired = (
-                time.time() - ppath.lstat().st_mtime
-            ) > self.expiration_secs
+            expired = (time.time() - ppath.lstat().st_mtime) > self.expiration_secs
         except FileNotFoundError:
             expired = True
 

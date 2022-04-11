@@ -41,9 +41,7 @@ class FlexibleDfParser(T2Integrator):
                     self._fix == "flex" and isinstance(cev_content, dict)
                 ):
                     df_base = [cev_content]
-                out.append(
-                    pd.DataFrame(df_base).assign(**self.url_parser(cev.url))
-                )
+                out.append(pd.DataFrame(df_base).assign(**self.url_parser(cev.url)))
         if not out:
             return
         new_df = pd.concat(out).pipe(self.proc_df)

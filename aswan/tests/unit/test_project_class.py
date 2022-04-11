@@ -38,28 +38,20 @@ def test_coll_event_handling(tmp_path):
             )
         session.commit()
 
-    cevs1 = _project._get_handler_events(
-        At, only_latest=True, only_successful=True
-    )
+    cevs1 = _project._get_handler_events(At, only_latest=True, only_successful=True)
 
     assert len(cevs1) == 1
     assert cevs1[0].output_file == "of2"
 
-    cevs2 = _project._get_handler_events(
-        At, only_latest=False, only_successful=True
-    )
+    cevs2 = _project._get_handler_events(At, only_latest=False, only_successful=True)
     assert len(cevs2) == 2
     assert set([cev.output_file for cev in cevs2]) == {"of2", "of1"}
 
-    cevs3 = _project._get_handler_events(
-        Bt, only_latest=True, only_successful=False
-    )
+    cevs3 = _project._get_handler_events(Bt, only_latest=True, only_successful=False)
     assert len(cevs3) == 2
     assert set([cev.output_file for cev in cevs3]) == {"of4", "of6"}
 
-    cevs4 = _project._get_handler_events(
-        Bt, only_latest=False, only_successful=False
-    )
+    cevs4 = _project._get_handler_events(Bt, only_latest=False, only_successful=False)
     assert len(cevs4) == 3
     assert set([cev.output_file for cev in cevs4]) == {"of4", "of5", "of6"}
 

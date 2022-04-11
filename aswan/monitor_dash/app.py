@@ -32,12 +32,8 @@ def update_metrics(store_data):
         _vc = pd.DataFrame(coll_evs)["status"].value_counts().to_dict()
     else:
         _vc = {}
-    _proc_in_1_hour = round(
-        _vc.get(Statuses.PROCESSED, 0) * 60 / LAST_N_MINS, 2
-    )
-    _todo_in_hours = round(
-        _vc.get(Statuses.TODO, 0) / (_proc_in_1_hour or 0.1), 2
-    )
+    _proc_in_1_hour = round(_vc.get(Statuses.PROCESSED, 0) * 60 / LAST_N_MINS, 2)
+    _todo_in_hours = round(_vc.get(Statuses.TODO, 0) / (_proc_in_1_hour or 0.1), 2)
     info_span = [
         html.P(f"statuses in last {LAST_N_MINS} minutes: {_vc}"),
         html.P(
@@ -88,9 +84,7 @@ def update_graph_live(store_data):
                 name=handler,
             )
         )
-    fig.update_layout(
-        barmode="stack", xaxis={"categoryorder": "category ascending"}
-    )
+    fig.update_layout(barmode="stack", xaxis={"categoryorder": "category ascending"})
     return fig
 
 
@@ -102,17 +96,14 @@ class MonitorApp:
         refresh_interval_secs=30,
     ):
 
-        self.app = dash.Dash(
-            __name__, external_stylesheets=external_stylesheets
-        )
+        self.app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
         self.app.layout = html.Div(
             [
                 dcc.Tabs(
                     id="env-tabs",
                     value=Envs.PROD,
                     children=[
-                        dcc.Tab(label=env, value=env)
-                        for env in engine_dict.keys()
+                        dcc.Tab(label=env, value=env) for env in engine_dict.keys()
                     ],
                 ),
                 html.Div(
@@ -132,9 +123,7 @@ class MonitorApp:
             ],
             style={"padding": 20},
         )
-        self._sessions = {
-            k: sessionmaker(engine) for k, engine in engine_dict.items()
-        }
+        self._sessions = {k: sessionmaker(engine) for k, engine in engine_dict.items()}
         self.object_stores = object_stores
         self._add_callbacks()
 
@@ -173,9 +162,7 @@ class MonitorApp:
             .all()
         )
         source_urls_grouped = (
-            session.query(
-                SourceUrl.current_status, SourceUrl.handler, func.count()
-            )
+            session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
             .group_by(SourceUrl.current_status, SourceUrl.handler)
             .all()
         )

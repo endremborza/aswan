@@ -90,9 +90,7 @@ def reset_surls(session: Session, statuses: list):
     session.commit()
 
 
-def process_result_queue(
-    result_queue: Iterable["UrlHandlerResult"], session: Session
-):
+def process_result_queue(result_queue: Iterable["UrlHandlerResult"], session: Session):
     s_urls = []
     for uh_result in result_queue:
         registered_surls = [

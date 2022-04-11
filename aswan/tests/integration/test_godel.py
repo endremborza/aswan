@@ -21,9 +21,7 @@ def test_godel(tmp_path, godel_test_app):
     )
     conf = godel_project.config
 
-    json_trepo = TableRepo(
-        conf.prod.t2_path / "js", env_parents=conf.t2_root_dic
-    )
+    json_trepo = TableRepo(conf.prod.t2_path / "js", env_parents=conf.t2_root_dic)
     click_trepo = conf.get_prod_table("click")
 
     class JsConc(aswan.RecordsToT2):
@@ -61,9 +59,7 @@ def test_godel(tmp_path, godel_test_app):
     assert jsdf.shape[0] == 1
     assert jsdf["A"].iloc[0] == 10
     assert (
-        next(godel_project.handler_events(ghandlers.GetMain, limit=1)).content[
-            "main"
-        ]
+        next(godel_project.handler_events(ghandlers.GetMain, limit=1)).content["main"]
         == "Alonzo Church"
     )
 
@@ -75,13 +71,10 @@ def test_godel(tmp_path, godel_test_app):
     godel_project.run(with_monitor_process=True)
 
     found = [
-        pcev.content["main"]
-        for pcev in godel_project.handler_events(ghandlers.GetMain)
+        pcev.content["main"] for pcev in godel_project.handler_events(ghandlers.GetMain)
     ]
     assert sorted(found) == ["Alonzo Church", "Entscheidungsproblem"]
-    for pcev in godel_project.handler_events(
-        ghandlers.GetMain, only_successful=False
-    ):
+    for pcev in godel_project.handler_events(ghandlers.GetMain, only_successful=False):
         if pcev.status == aswan.Statuses.CONNECTION_ERROR:
             assert pcev.url.split("/")[-1] == "Alan_Turing"
 

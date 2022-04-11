@@ -33,10 +33,7 @@ class _Remote:
         assert conf.db.startswith(_dbprefix)
 
         new_tar = (
-            datetime.datetime.now()
-            .isoformat()
-            .replace(".", "-")
-            .replace(":", "-")
+            datetime.datetime.now().isoformat().replace(".", "-").replace(":", "-")
             + _tarext
         )
         ostore = get_object_store(conf.object_store)

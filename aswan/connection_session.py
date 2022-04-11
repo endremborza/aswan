@@ -224,9 +224,7 @@ class BrowserSession:
         if self._eager:
             caps["pageLoadStrategy"] = "eager"
         logger.info(f"launching browser: {chrome_options.arguments}")
-        self.browser = Chrome(
-            options=chrome_options, desired_capabilities=caps
-        )
+        self.browser = Chrome(options=chrome_options, desired_capabilities=caps)
 
     def stop(self):
         try:
@@ -292,9 +290,7 @@ class RequestSession:
             if _is_session_broken(req_result):
                 raise BrokenSessionError(f"{req_result} - :(")
             time.sleep(handler.get_retry_sleep_time())
-        raise RequestError(
-            f"request resulted in error with status {req_result}"
-        )
+        raise RequestError(f"request resulted in error with status {req_result}")
 
 
 cap_to_kwarg = {
@@ -307,9 +303,7 @@ cap_to_kwarg = {
 def get_actor_dict(proxy_data: Iterable[ProxyData]):
 
     browsets = [[Caps.eager_browser], [Caps.normal_browser]]
-    base_capsets = (
-        [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
-    )
+    base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
     out = {}
     for pd, capset in product(proxy_data, base_capsets):
         full_kwargs = dict(proxy_kls=pd.kls)
@@ -335,8 +329,5 @@ def _parse_exception(e):
     return {
         "e_type": type(e).__name__,
         "e": str(e),
-        "tb": [
-            tb.strip().split("\n")
-            for tb in traceback.format_tb(e.__traceback__)
-        ],
+        "tb": [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)],
     }

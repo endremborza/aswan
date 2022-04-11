@@ -132,9 +132,7 @@ class AswanConfig:
         """can use prefixes in kwargs like test_ or exp_"""
 
         dirpath = Path(dirpath or Path.cwd())
-        env_dic = {
-            "remote_root": remote_root or (dirpath / DEFAULT_REMOTE).as_posix()
-        }
+        env_dic = {"remote_root": remote_root or (dirpath / DEFAULT_REMOTE).as_posix()}
         for env in Envs.all():
             prefix = env + "_"
             env_conf = kwargs.get(prefix + "config")
@@ -144,9 +142,7 @@ class AswanConfig:
                     for k, v in kwargs.items()
                     if k.startswith(prefix)
                 }
-                env_dic[env] = _get_kls(env).from_dir(
-                    dirpath / env, **env_kwargs
-                )
+                env_dic[env] = _get_kls(env).from_dir(dirpath / env, **env_kwargs)
             else:
                 env_dic[env] = env_conf
         return cls(**env_dic)

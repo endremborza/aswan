@@ -33,14 +33,10 @@ class ObjectStoreBase(ABC):
     def _local_iter(self):
         pass
 
-    def dump_json(
-        self, obj: Union[list, dict], path: Optional[str] = None
-    ) -> str:
+    def dump_json(self, obj: Union[list, dict], path: Optional[str] = None) -> str:
         return self.dump_str(json.dumps(obj), path, ".json")
 
-    def dump_str(
-        self, s: str, path: Optional[str] = None, extension: str = ""
-    ) -> str:
+    def dump_str(self, s: str, path: Optional[str] = None, extension: str = "") -> str:
         return self.dump_bytes(s.encode("utf-8"), path, extension)
 
     def dump_pickle(self, obj, path: Optional[str] = None) -> str:

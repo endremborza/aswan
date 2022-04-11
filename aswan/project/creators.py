@@ -11,9 +11,7 @@ def project_from_dir(dirpath=None, **config_kwargs):
 
 
 def project_from_prod_conf(prodenvconf: EnvConfig, dirpath=None):
-    return Project(
-        AswanConfig.default_from_dir(dirpath, prod_config=prodenvconf)
-    )
+    return Project(AswanConfig.default_from_dir(dirpath, prod_config=prodenvconf))
 
 
 def project_from_prod_info(

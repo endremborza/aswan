@@ -30,12 +30,7 @@ from ..security import ProxyData
 from ..security.proxy_base import ProxyBase
 from ..t2_integrators import T2Integrator
 from ..url_handler import UrlHandler  # pragma: no cover
-from ..utils import (
-    is_handler,
-    is_proxy_base,
-    is_t2_integrator,
-    run_and_log_functions,
-)
+from ..utils import is_handler, is_proxy_base, is_t2_integrator, run_and_log_functions
 
 logger = get_logger()
 
@@ -215,9 +210,7 @@ class Project:
                 try:
                     integrator.parse_pcevlist(pcevs)
                 except Exception as e:
-                    logger.warning(
-                        f"integrator raised error: {type(e).__name__}: {e}"
-                    )
+                    logger.warning(f"integrator raised error: {type(e).__name__}: {e}")
                     raise e
                     return
             for cev in coll_evs:
@@ -279,9 +272,7 @@ class Project:
             return []
 
         with self._get_session() as session:
-            n_to_target = (
-                self.env_config.batch_size - self._scheduler.queued_task_count
-            )
+            n_to_target = self.env_config.batch_size - self._scheduler.queued_task_count
             next_surl_batch = get_next_surl_batch(
                 max(n_to_target, 0),
                 session,
@@ -403,11 +394,7 @@ class ParsedCollectionEvent:
 
     @property
     def content(self):
-        return (
-            self._ostore.read_json(self._output_file)
-            if self._output_file
-            else None
-        )
+        return self._ostore.read_json(self._output_file) if self._output_file else None
 
     def __repr__(self):
         return f"{self.status}: {self.handler_name} - {self.url}"

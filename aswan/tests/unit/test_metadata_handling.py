@@ -55,9 +55,7 @@ def test_register(dbsession):
         register_source_urls(additions, dbsession)
         assert dbsession.query(SourceUrl).count() == expected_count
 
-    register_source_urls(
-        [_getsurl(current_status=Statuses.PROCESSING)], dbsession
-    )
+    register_source_urls([_getsurl(current_status=Statuses.PROCESSING)], dbsession)
     assert (
         dbsession.query(SourceUrl)
         .filter(SourceUrl.current_status == Statuses.PROCESSED)
@@ -87,18 +85,16 @@ def test_register(dbsession):
 def test_batch(dbsession):
     dbsession.add(_getsurl(current_status=Statuses.TODO))
     dbsession.add(_getsurl("link-2", current_status=Statuses.EXPIRED))
-    dbsession.add(
-        _getsurl(handler="B", current_status=Statuses.SESSION_BROKEN)
-    )
+    dbsession.add(_getsurl(handler="B", current_status=Statuses.SESSION_BROKEN))
     dbsession.add(_getsurl("link-3", current_status=Statuses.PROCESSING))
     dbsession.add(_getsurl("link-4", current_status=Statuses.PARSING_ERROR))
     dbsession.commit()
 
     batch = get_next_surl_batch(10, dbsession)
     assert len(batch) == 3
-    assert sorted(
-        [Statuses.TODO, Statuses.EXPIRED, Statuses.SESSION_BROKEN]
-    ) == sorted([su.current_status for su in batch])
+    assert sorted([Statuses.TODO, Statuses.EXPIRED, Statuses.SESSION_BROKEN]) == sorted(
+        [su.current_status for su in batch]
+    )
 
     assert len(get_next_surl_batch(2, dbsession)) == 2
 
