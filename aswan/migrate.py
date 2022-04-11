@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from aswan.config_class import ProdConfig
 
 _dbprefix = "sqlite:///"
+_tarext = ".tgz"
 
 
 class _Remote:
@@ -28,15 +29,12 @@ class _Remote:
             self.ostore.mkdir(exist_ok=True)
             self.t2_root.mkdir(exist_ok=True)
 
-    def push(self, conf: "ProdConfig"):
+    def push(self, conf: "ProdConfig", clean_ostore=False):
         assert conf.db.startswith(_dbprefix)
 
         new_tar = (
-            datetime.datetime.now()
-            .isoformat()
-            .replace(".", "-")
-            .replace(":", "-")
-            + ".tgz"
+            datetime.datetime.now().isoformat().replace(".", "-").replace(":", "-")
+            + _tarext
         )
         ostore = get_object_store(conf.object_store)
         with ostore.tarcontext() as tfile:
@@ -44,11 +42,18 @@ class _Remote:
 
         self._copyfile(conf.db.replace(_dbprefix, ""), self.dbfile)
         self._copytree(conf.t2_root, self.t2_root)
+        if clean_ostore:
+            ostore.purge()
 
-    def pull(self, conf: "ProdConfig"):
+    def pull(self, conf: "ProdConfig", pull_ostore=False):
         assert conf.db.startswith(_dbprefix)
         self._copyfile(self.dbfile, conf.db.replace(_dbprefix, ""))
         self._copytree(self.t2_root, conf.t2_root)
+
+        ostore = get_object_store(conf.object_store)
+        if pull_ostore:
+            for tarpath in self._archive_tars():
+                ostore.dump_tar(tarpath)
 
     def _copyfile(self, src, dst):
         if not self._is_s3:
@@ -58,10 +63,14 @@ class _Remote:
         if not self._is_s3:
             shutil.copytree(src, dst, dirs_exist_ok=True)
 
+    def _archive_tars(self):
+        if not self._is_s3:
+            return self.ostore.glob(f"*{_tarext}")
 
-def push(conf: "ProdConfig", remote: str):
-    _Remote(remote).push(conf)
+
+def push(conf: "ProdConfig", remote: str, clean_ostore=False):
+    _Remote(remote).push(conf, clean_ostore)
 
 
-def pull(conf: "ProdConfig", remote: str):
-    _Remote(remote).pull(conf)
+def pull(conf: "ProdConfig", remote: str, pull_ostore=False):
+    _Remote(remote).pull(conf, pull_ostore)

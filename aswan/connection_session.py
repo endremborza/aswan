@@ -1,10 +1,15 @@
 import json
+import sys
 import time
 import traceback
 from dataclasses import dataclass, field
-from typing import List, Optional
+from functools import partial
+from itertools import product
+from json.decoder import JSONDecodeError
+from typing import Dict, Iterable, List, Optional
 
 import requests
+from atqo import ActorBase, CapabilitySet, SchedulerTask
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
@@ -14,16 +19,8 @@ from structlog import get_logger
 from .constants import HEADERS, Statuses
 from .exceptions import BrokenSessionError, RequestError
 from .object_store import ObjectStoreBase
-from .resources import (
-    BrowserResource,
-    EagerBrowserResource,
-    HeadlessBrowserResource,
-    ProxyResource,
-)
-from .scheduler import ActorFrameBase, SchedulerTask
-from .scheduler.resource import Resource
-from .security import DEFAULT_PROXY
-from .security.proxy_base import ProxyBase
+from .resources import Caps
+from .security import DEFAULT_PROXY, ProxyBase, ProxyData
 from .url_handler import RegisteredLink, UrlHandler
 from .utils import add_url_params
 
@@ -33,7 +30,7 @@ EXCEPTION_STATUSES = {
     RequestError: Statuses.CONNECTION_ERROR,
     BrokenSessionError: Statuses.SESSION_BROKEN,
 }
-DEFAULT_EXTEPTION_STATUS = Statuses.PARSING_ERROR
+DEFAULT_EXCEPTION_STATUS = Statuses.PARSING_ERROR
 
 
 @dataclass
@@ -54,12 +51,11 @@ class HandlingTask:
     handler: UrlHandler
     url: str
     object_store: ObjectStoreBase
-    proxy_dic: dict = field(default_factory=dict)
 
-    def get_scheduler_task(self) -> SchedulerTask:
+    def get_scheduler_task(self, proxy_dic) -> SchedulerTask:
         return SchedulerTask(
             argument=self,
-            resource_needs=self.handler.get_resource_needs(self.proxy_dic),
+            requirements=get_caps(self.handler, proxy_dic),
         )
 
     @property
@@ -67,29 +63,43 @@ class HandlingTask:
         return self.handler.name
 
 
-class ConnectionSession(ActorFrameBase):
-    cpu_needs = 0.33  # 0.33  scheduler checks this too early :(
+def get_caps(handler: UrlHandler, proxy_dic: Dict[str, ProxyData]):
 
-    def __init__(self, resource_needs: List[Resource]):
-        super().__init__(resource_needs=resource_needs)
-        self.is_browser = False
-        self.headless = False
-        self.eager = False
-        self._proxy_kls = DEFAULT_PROXY()
-        self.proxy_host = None
-        for res in resource_needs:
-            if isinstance(res, (BrowserResource, HeadlessBrowserResource)):
-                self.is_browser = True
-                self.cpu_needs = 1
-                self.headless = isinstance(res, HeadlessBrowserResource)
-            if isinstance(res, EagerBrowserResource):
-                self.eager = True
-            if isinstance(res, ProxyResource):
-                self._proxy_kls = res.proxy_kls()
-                self.proxy_host = self._proxy_kls.get_new_host()
+    try:
+        p_data = proxy_dic[handler.proxy_kind]
+    except KeyError:
+        logger.warning(
+            f"couldn't find proxy {handler.proxy_kind}",
+            available=list(proxy_dic.keys()),
+        )
+        p_data = proxy_dic[DEFAULT_PROXY.name]
+
+    caps = [p_data.cap]
+    if handler.needs_browser:
+        if not handler.headless:
+            caps.append(Caps.display)
+        if handler.eager:
+            caps.append(Caps.eager_browser)
+        else:
+            caps.append(Caps.normal_browser)
+    return caps
+
+
+class ConnectionSession(ActorBase):
+    def __init__(
+        self,
+        is_browser=False,
+        headless=True,
+        eager=False,
+        proxy_kls=DEFAULT_PROXY,
+    ):
+        self.is_browser = is_browser
+        self.eager = eager
+        self._proxy_kls = proxy_kls()
+        self.proxy_host = self._proxy_kls.get_new_host()
 
         self._insess = (
-            BrowserSession(self.headless, self.eager)
+            BrowserSession(headless, self.eager)
             if self.is_browser
             else RequestSession()
         )
@@ -128,11 +138,14 @@ class ConnectionSession(ActorFrameBase):
         resp = self._insess.get_response_content(handler, url, params)
         if isinstance(resp, (dict, list)):
             return resp
-
         if handler.parses_raw:
             return handler.parse_raw(resp)
         elif handler.parses_json:
-            return handler.parse_json(json.loads(resp))
+            try:
+                ser = json.loads(resp)
+            except JSONDecodeError:
+                ser = json.loads(BeautifulSoup(resp, "html5lib").text)
+            return handler.parse_json(ser)
         else:
             return handler.parse_soup(BeautifulSoup(resp, "html5lib"))
 
@@ -154,7 +167,7 @@ class ConnectionSession(ActorFrameBase):
             status = Statuses.PROCESSED
         except Exception as e:
             out = _parse_exception(e)
-            status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXTEPTION_STATUS)
+            status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
             logger.warning(
                 "Error while getting parsed response",
                 handler=task.handler_name,
@@ -175,7 +188,7 @@ class ConnectionSession(ActorFrameBase):
             registered_links=task.handler.pop_registered_links(),
         )
 
-    def _initiate_handler(self, handler):
+    def _initiate_handler(self, handler: UrlHandler):
         for _ in range(handler.initiation_retries):
             try:
                 self._insess.initiate_handler(handler)
@@ -201,16 +214,17 @@ class BrowserSession:
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
         chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
         caps = DesiredCapabilities().CHROME
+        if sys.platform == "linux":
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--no-sandbox")  # linux only
         if self._headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--no-sandbox")  # linux only
             chrome_options.add_argument("--headless")
         if self._eager:
             caps["pageLoadStrategy"] = "eager"
-        self.browser = Chrome(
-            options=chrome_options, desired_capabilities=caps
-        )
+        logger.info(f"launching browser: {chrome_options.arguments}")
+        self.browser = Chrome(options=chrome_options, desired_capabilities=caps)
 
     def stop(self):
         try:
@@ -276,9 +290,30 @@ class RequestSession:
             if _is_session_broken(req_result):
                 raise BrokenSessionError(f"{req_result} - :(")
             time.sleep(handler.get_retry_sleep_time())
-        raise RequestError(
-            f"request resulted in error with status {req_result}"
-        )
+        raise RequestError(f"request resulted in error with status {req_result}")
+
+
+cap_to_kwarg = {
+    Caps.display: dict(headless=False),
+    Caps.normal_browser: dict(is_browser=True),
+    Caps.eager_browser: dict(is_browser=True, eager=True),
+}
+
+
+def get_actor_dict(proxy_data: Iterable[ProxyData]):
+
+    browsets = [[Caps.eager_browser], [Caps.normal_browser]]
+    base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
+    out = {}
+    for pd, capset in product(proxy_data, base_capsets):
+        full_kwargs = dict(proxy_kls=pd.kls)
+        for cap in capset:
+            full_kwargs.update(cap_to_kwarg.get(cap, {}))
+        actor = partial(ConnectionSession, **full_kwargs)
+        actor.__name__ = "Conn"  # TODO hack :(
+        out[CapabilitySet([pd.cap, *capset])] = actor
+
+    return out
 
 
 def _is_session_broken(req_res):  # TODO: this might be handle specific
@@ -294,8 +329,5 @@ def _parse_exception(e):
     return {
         "e_type": type(e).__name__,
         "e": str(e),
-        "tb": [
-            tb.strip().split("\n")
-            for tb in traceback.format_tb(e.__traceback__)
-        ],
+        "tb": [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)],
     }

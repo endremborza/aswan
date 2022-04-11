@@ -80,7 +80,7 @@ class ParsedObject:
                 keybranch_tuple, obj, record_keybranch_so_far
             )
         except KeyError as e:
-            logger.warning(f"KeyError: {e} key not in object {obj}")
+            logger.warning(f"KeyError: {e} key not in object {type(obj)}")
         return self
 
     def _integrate_key_branch_of_object(
@@ -119,11 +119,7 @@ class ParsedObject:
                 key_creator=NAMING_SHCEME_DICT[NamingSchemes.last],
                 extension={
                     **self._extension_based_on_keys,
-                    **(
-                        {current_key.level_name: ind}
-                        if current_key.level_name
-                        else {}
-                    ),
+                    **({current_key.level_name: ind} if current_key.level_name else {}),
                 },
             ).integrate_key_branch_of_object(
                 remaining_keys, obj[ind], record_keybranch_so_far
@@ -172,9 +168,7 @@ class Parser:
         self._prefix = prefix + "_" if prefix else ""
         self.extractor_dic: Dict[str, RecordExtractor] = named_esxtractors
         for extractor_name, extractor in named_esxtractors.items():
-            setattr(
-                self, extractor_name, [] if extractor.id_key is None else {}
-            )
+            setattr(self, extractor_name, [] if extractor.id_key is None else {})
 
     def process_obj(self, obj):
         for extractor_name, extractor in self.extractor_dic.items():
@@ -203,9 +197,7 @@ def _get_unstack_and_keys(current_key, obj):
     elif isinstance(current_key, ListElements):
         unstack = current_key.unstack
         keys_to_parse = range(
-            current_key.max_index
-            if current_key.max_index is not None
-            else len(obj)
+            current_key.max_index if current_key.max_index is not None else len(obj)
         )
     else:
         keys_to_parse = [current_key]

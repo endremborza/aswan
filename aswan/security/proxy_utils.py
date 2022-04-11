@@ -65,9 +65,7 @@ def get_chrome_options(
 ):
     chrome_options = webdriver.ChromeOptions()
     if auth is None:
-        chrome_options.add_argument(
-            f"--proxy-server={prefix}://{host}:{port_no}"
-        )
+        chrome_options.add_argument(f"--proxy-server={prefix}://{host}:{port_no}")
         chrome_options.add_argument(
             f'--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE {host}"'
         )

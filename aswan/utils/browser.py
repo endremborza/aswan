@@ -26,9 +26,7 @@ def browser_wait(
             element_tuples.append((by_descriptor, elem_id))
 
     for element_tuple in element_tuples:
-        element_present = expected_conditions.presence_of_element_located(
-            element_tuple
-        )
+        element_present = expected_conditions.presence_of_element_located(element_tuple)
         try:
             WebDriverWait(browser, timeout).until(element_present)
         except TimeoutException:

@@ -2,16 +2,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional, Union
 
+import sqlalchemy as db
 import yaml
 from parquetranger import TableRepo
 
-from .constants import DistApis, Envs
+from .constants import Envs
+from .models import Base
+from .object_store import get_object_store
 
 CONFIG_FILE = "aswanconfig.yaml"
 DEFAULT_REMOTE = "aswan-data"
 DEFAULT_PROD_BATCH_SIZE = 40
 DEFAULT_PROD_MIN_QUEUE_SIZE = DEFAULT_PROD_BATCH_SIZE // 2
 DEFAULT_BATCH_SIZE = 10
+DEFAULT_PROD_DIST_API = "ray"
+DEFAULT_DIST_API = "sync"
 
 
 @dataclass
@@ -20,7 +25,7 @@ class EnvConfig:
     object_store: str
     t2_root: str
 
-    distributed_api: str = DistApis.default()
+    distributed_api: str = DEFAULT_DIST_API
     min_queue_size: int = 0
     batch_size: int = DEFAULT_BATCH_SIZE
 
@@ -53,7 +58,7 @@ class ProdConfig(EnvConfig):
     object_store: str
     t2_root: str
 
-    distributed_api: str = DistApis.RAY
+    distributed_api: str = DEFAULT_PROD_DIST_API
     min_queue_size: int = DEFAULT_PROD_MIN_QUEUE_SIZE
     batch_size: int = DEFAULT_PROD_BATCH_SIZE
 
@@ -99,20 +104,14 @@ class AswanConfig:
             group_cols=group_cols,
         )
 
-    def export_remote_trepos(self, fpath, trepos, append=False):
-        flines = []
-        if not append:
-            flines.append("from parquetranger import TableRepo")
-
-        for trepo in trepos:
-            gcol = trepo.group_cols
-            if isinstance(gcol, str):
-                gcol = f'"{gcol}"'
-            _fpath = f"{self.remote_root}/t2/{trepo.name}"
-            flines.append(
-                f'{trepo.name} = TableRepo("{_fpath}"' f", group_cols={gcol})"
-            )
-        Path(fpath).write_text("\n\n".join(flines))
+    def get_db_dicts(self):
+        _engines, _obj_stores = {}, {}
+        for name, envconf in self.env_items():
+            _engine = db.create_engine(envconf.db)
+            Base.metadata.create_all(_engine)
+            _engines[name] = _engine
+            _obj_stores[name] = get_object_store(envconf.object_store)
+        return _engines, _obj_stores
 
     @classmethod
     def load(cls, dirpath: str = "."):
@@ -133,9 +132,7 @@ class AswanConfig:
         """can use prefixes in kwargs like test_ or exp_"""
 
         dirpath = Path(dirpath or Path.cwd())
-        env_dic = {
-            "remote_root": remote_root or (dirpath / DEFAULT_REMOTE).as_posix()
-        }
+        env_dic = {"remote_root": remote_root or (dirpath / DEFAULT_REMOTE).as_posix()}
         for env in Envs.all():
             prefix = env + "_"
             env_conf = kwargs.get(prefix + "config")
@@ -145,9 +142,7 @@ class AswanConfig:
                     for k, v in kwargs.items()
                     if k.startswith(prefix)
                 }
-                env_dic[env] = _get_kls(env).from_dir(
-                    dirpath / env, **env_kwargs
-                )
+                env_dic[env] = _get_kls(env).from_dir(dirpath / env, **env_kwargs)
             else:
                 env_dic[env] = env_conf
         return cls(**env_dic)

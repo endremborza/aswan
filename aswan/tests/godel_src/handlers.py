@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from selenium.webdriver import Chrome
+from selenium.webdriver.common.by import By
 
 import aswan
 from aswan.tests.godel_src.app import test_app_default_address
@@ -20,14 +21,14 @@ class Clicker(aswan.UrlHandler):
     test_urls = ["/test_page/jstest_bad.html"]
 
     def handle_browser(self, browser: Chrome):
-        browser.find_element_by_id("funbut").click()
-        out_time = int(browser.find_element_by_id("field4").text)
+        browser.find_element(By.ID, "funbut").click()
+        out_time = int(browser.find_element(By.ID, "field4").text)
         if int(out_time) > 2000:
             self.set_expiration(0)
 
         return {
             "field4": out_time,
-            "field2": browser.find_element_by_id("field2").text,
+            "field2": browser.find_element(By.ID, "field2").text,
         }
 
 

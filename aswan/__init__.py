@@ -1,15 +1,8 @@
 # flake8: noqa
+"""Data collection manager"""
 from ._version import __version__
 from .config_class import AswanConfig, EnvConfig, ProdConfig
-from .constants import (
-    ONE_DAY,
-    ONE_HOUR,
-    ONE_MINUTE,
-    ONE_WEEK,
-    ONE_YEAR,
-    Envs,
-    Statuses,
-)
+from .constants import ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_WEEK, ONE_YEAR, Envs, Statuses
 from .project import Project
 from .project.creators import (
     project_from_dir,
@@ -18,10 +11,7 @@ from .project.creators import (
 )
 from .security.proxy_base import ProxyAuth, ProxyBase
 from .simplified_functions import get_json, get_soup
-from .t2_integrators import (
-    ConcatToT2,
-    FlexibleDfParser,
-    RecordsToT2,
-    T2Integrator,
-)
+from .t2_integrators import ConcatToT2, FlexibleDfParser, RecordsToT2, T2Integrator
 from .url_handler import UrlHandler, UrlJsonHandler
+
+__version__ = "0.0.0"

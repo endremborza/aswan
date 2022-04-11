@@ -1,19 +1,37 @@
 [project]
 name = "aswan"
-description = "Data collection manager"
-authors = [
-    "Endre Márk Borza"
-]
-license = "MIT"
+dynamic = ["version", "description"]
+authors = [{name = "Endre Márk Borza", email = "endremborza@gmail.com"}]
+license = {file = "LICENSE"}
 readme = "README.md"
-python = ">=3.7"
-url = "https://github.com/endremborza/aswan"
-boilerplate_branch="master"
-keyowrds="data-lake"
-[build-system]
-requires = [
-    "toml >= 0.10.0",
-    "setuptools >= 38.6.0",
-    "wheel >= 0.31.0",
-    "setuptools_scm >= 2.0.0, <3"
+requires-python = ">=3.8"
+dependencies = [
+    "requests",
+    "dash-bootstrap-components",
+    "beautifulsoup4",
+    "html5lib",
+    "tqdm",
+    "s3fs",
+    "selenium",
+    "dash",
+    "sqlalchemy",
+    "structlog",
+    "pyyaml",
+    "cookiecutter",
+    "parquetranger",
+    "atqo[ray,fancy]",
 ]
+
+[project.optional-dependencies]
+test = ["branthebuilder"]
+doc = ["branthebuilder[doc]"]
+
+[project.urls]
+Homepage = "https://github.com/endremborza/aswan"
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.branb]
+line-length = 88

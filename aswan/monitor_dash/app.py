@@ -1,13 +1,14 @@
 import datetime as dt
+import os
+import sys
 import time
 from typing import Dict
 
 import dash
 import dash_bootstrap_components as dbc
-import dash_core_components as dcc
-import dash_html_components as html
 import pandas as pd
 import plotly.graph_objects as go
+from dash import dcc, html
 from dash.dependencies import Input, Output
 from sqlalchemy import func
 from sqlalchemy.engine import Engine
@@ -31,15 +32,15 @@ def update_metrics(store_data):
         _vc = pd.DataFrame(coll_evs)["status"].value_counts().to_dict()
     else:
         _vc = {}
-    _proc_in_1_hour = round(
-        _vc.get(Statuses.PROCESSED, 0) * 60 / LAST_N_MINS, 2
-    )
+    _proc_in_1_hour = round(_vc.get(Statuses.PROCESSED, 0) * 60 / LAST_N_MINS, 2)
+    _todo_in_hours = round(_vc.get(Statuses.TODO, 0) / (_proc_in_1_hour or 0.1), 2)
     info_span = [
         html.P(f"statuses in last {LAST_N_MINS} minutes: {_vc}"),
         html.P(
             f"projection for 1 hour: {_proc_in_1_hour} -"
             f" ({24 * _proc_in_1_hour} / day)"
         ),
+        html.P(f"all todos in {_todo_in_hours} hours"),
     ]
     trs = []
     for cev in coll_evs:
@@ -83,9 +84,7 @@ def update_graph_live(store_data):
                 name=handler,
             )
         )
-    fig.update_layout(
-        barmode="stack", xaxis={"categoryorder": "category ascending"}
-    )
+    fig.update_layout(barmode="stack", xaxis={"categoryorder": "category ascending"})
     return fig
 
 
@@ -97,17 +96,14 @@ class MonitorApp:
         refresh_interval_secs=30,
     ):
 
-        self.app = dash.Dash(
-            __name__, external_stylesheets=external_stylesheets
-        )
+        self.app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
         self.app.layout = html.Div(
             [
                 dcc.Tabs(
                     id="env-tabs",
                     value=Envs.PROD,
                     children=[
-                        dcc.Tab(label=env, value=env)
-                        for env in engine_dict.keys()
+                        dcc.Tab(label=env, value=env) for env in engine_dict.keys()
                     ],
                 ),
                 html.Div(
@@ -127,9 +123,7 @@ class MonitorApp:
             ],
             style={"padding": 20},
         )
-        self._sessions = {
-            k: sessionmaker(engine) for k, engine in engine_dict.items()
-        }
+        self._sessions = {k: sessionmaker(engine) for k, engine in engine_dict.items()}
         self.object_stores = object_stores
         self._add_callbacks()
 
@@ -168,9 +162,7 @@ class MonitorApp:
             .all()
         )
         source_urls_grouped = (
-            session.query(
-                SourceUrl.current_status, SourceUrl.handler, func.count()
-            )
+            session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
             .group_by(SourceUrl.current_status, SourceUrl.handler)
             .all()
         )
@@ -199,10 +191,10 @@ class MonitorApp:
         }
 
 
-def get_monitor_app(
-    engine_dict: Dict[str, Engine],
-    object_stores: Dict[str, ObjectStoreBase],
-    refresh_interval_secs=30,
-):
-
-    return MonitorApp(engine_dict, object_stores, refresh_interval_secs).app
+def run_monitor_app(conf, port_no=6969, refresh_interval_secs=30):
+    sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
+    _engines, _obj_stores = conf.get_db_dicts()
+    MonitorApp(_engines, _obj_stores, refresh_interval_secs).app.run_server(
+        port=port_no, debug=False
+    )

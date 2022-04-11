@@ -22,9 +22,7 @@ def test_fun_logger(capsys):
 
 def test_url_param_add():
 
-    assert (
-        add_url_params("http://test.com", {"k": "v"}) == "http://test.com?k=v"
-    )
+    assert add_url_params("http://test.com", {"k": "v"}) == "http://test.com?k=v"
     assert (
         add_url_params("http://test.com", {"k1": "v1", "k2": "v2"})
         == "http://test.com?k1=v1&k2=v2"
@@ -52,8 +50,5 @@ def test_url_root(full_url):
 def test_url_root_weird():
 
     assert get_url_root("http://te-st.com/a/b") == "http://te-st.com"
-    assert (
-        get_url_root("https://xx.re.te-st.com/a/b")
-        == "https://xx.re.te-st.com"
-    )
+    assert get_url_root("https://xx.re.te-st.com/a/b") == "https://xx.re.te-st.com"
     assert get_url_root("nothing") is None
