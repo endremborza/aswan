@@ -1,6 +1,5 @@
 # flake8: noqa
 """Data collection manager"""
-from ._version import __version__
 from .config_class import AswanConfig, EnvConfig, ProdConfig
 from .constants import ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_WEEK, ONE_YEAR, Envs, Statuses
 from .project import Project
