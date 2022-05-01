@@ -81,7 +81,7 @@ def get_chrome_options(
                     "background.js",
                     background_js % (host, port_no, auth.user, auth.password),
                 )
-        chrome_options.add_encoded_extension(
-            base64.b64encode(tmpfile.read_bytes()).decode("UTF-8")
-        )
+            chrome_options.add_encoded_extension(
+                base64.b64encode(tmpfile.read_bytes()).decode("UTF-8")
+            )
     return chrome_options
