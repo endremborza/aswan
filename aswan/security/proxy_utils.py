@@ -1,4 +1,7 @@
+import base64
 import zipfile
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional
 
 from selenium import webdriver
@@ -70,12 +73,15 @@ def get_chrome_options(
             f'--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE {host}"'
         )
     else:
-        pluginfile = f"/tmp/{host}.zip"
-        with zipfile.ZipFile(pluginfile, "w") as zp:
-            zp.writestr("manifest.json", manifest_json)
-            zp.writestr(
-                "background.js",
-                background_js % (host, port_no, auth.user, auth.password),
+        with TemporaryDirectory() as tmpdir:
+            tmpfile = Path(tmpdir) / f"{host}.zip"
+            with zipfile.ZipFile(tmpfile, "w") as zp:
+                zp.writestr("manifest.json", manifest_json)
+                zp.writestr(
+                    "background.js",
+                    background_js % (host, port_no, auth.user, auth.password),
+                )
+            chrome_options.add_encoded_extension(
+                base64.b64encode(tmpfile.read_bytes()).decode("UTF-8")
             )
-        chrome_options.add_extension(pluginfile)
     return chrome_options
