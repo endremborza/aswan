@@ -1,7 +1,6 @@
 import shutil
 import tarfile
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 from typing import Dict
 
@@ -38,8 +37,7 @@ class EnvConfig:
     def __post_init__(self):
         self.root.mkdir(exist_ok=True, parents=True)
 
-    @cached_property
-    def engine(self):
+    def get_engine(self):
         _engine = db.create_engine(f"{_dbprefix}{self.db_path}")
         Base.metadata.create_all(_engine)
         return _engine

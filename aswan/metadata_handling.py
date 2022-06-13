@@ -23,6 +23,7 @@ class MetaHandler:
     def __init__(self, conf: "AswanConfig") -> None:
         self._conf = conf
         self.env_conf = conf.prod
+        self.engine = self.env_conf.get_engine()
 
         self.purge_db = self._wrap(purge_db)
         self.add_urls = self._wrap(add_urls_to_handler)
@@ -37,6 +38,7 @@ class MetaHandler:
 
     def set_env(self, env_name):
         self.env_conf = self._conf.env_dict[env_name]
+        self.engine = self.env_conf.get_engine()
 
     @contextmanager
     def get_non_integrated(self, integrator: str, redo=False, only_latest=True):
@@ -62,7 +64,7 @@ class MetaHandler:
 
     @contextmanager
     def _get_session(self):
-        session: Session = MySession(bind=self.env_conf.engine)
+        session: Session = MySession(bind=self.engine)
         yield session
         session.close()
 

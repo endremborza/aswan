@@ -140,7 +140,7 @@ class MonitorApp:
                 return {"list": out}
 
     def update_store(self, _, env_id):
-        session = sessionmaker(self.conf.env_dict[env_id].engine)()
+        session = sessionmaker(self.conf.env_dict[env_id].get_engine())()
         coll_events = (
             session.query(CollectionEvent)
             .filter(CollectionEvent.timestamp > time.time() - LAST_N_MINS * 60)
