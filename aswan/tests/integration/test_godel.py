@@ -1,14 +1,16 @@
 from collections import Counter
 
 import pandas as pd
-from parquetranger import TableRepo
 
 import aswan
 import aswan.tests.godel_src.handlers as ghandlers
 import aswan.tests.godel_src.registrands as gregs
 
+# import pytest
 
-def test_godel(tmp_path, godel_test_app):
+
+# @pytest.mark.parametrize("dist_api", [("sync"), ("mp")])
+def test_godel(godel_test_app, test_project: aswan.Project):
     """
     missing to test:
     - proxies
@@ -16,42 +18,41 @@ def test_godel(tmp_path, godel_test_app):
     - cookies
     """
 
-    godel_project = aswan.project_from_dir(
-        tmp_path, prod_distributed_api=aswan.config_class.DEFAULT_PROD_DIST_API
-    )
-    conf = godel_project.config
-
-    json_trepo = TableRepo(conf.prod.t2_path / "js", env_parents=conf.t2_root_dic)
+    conf = test_project.config
+    json_trepo = conf.get_prod_table("js")
     click_trepo = conf.get_prod_table("click")
 
-    class JsConc(aswan.RecordsToT2):
+    class JsConc(aswan.FlexibleDfParser):
         handlers = [ghandlers.JS]
 
-        def get_t2_table(self):
-            return json_trepo
+        def write_df(self, df):
+            return json_trepo.extend(df)
 
-    class T2IntJS(aswan.T2Integrator):
-        def parse_pcevlist(self, pcevs):
-            for pc in pcevs:
-                if pc.handler_name == ghandlers.Clicker().name:
-                    click_trepo.replace_records(
-                        pd.DataFrame([pc.content]).set_index("field2")
-                    )
+    class T2IntJS(aswan.FlexibleDfParser):
 
-    godel_project.register_module(ghandlers)
-    godel_project.register_module(gregs)
+        handlers = [ghandlers.Clicker]
+
+        def write_df(self, df):
+            return click_trepo.replace_records(df)
+
+        @staticmethod
+        def proc_df(df: pd.DataFrame):
+            return df.set_index("field2")
+
+    test_project.register_module(ghandlers)
+    test_project.register_module(gregs)
 
     for t2i in [JsConc, T2IntJS]:
-        godel_project.register_t2_integrator(t2i)
+        test_project.register_t2_integrator(t2i)
 
     for trepo in [json_trepo, click_trepo]:
-        godel_project.register_t2_table(trepo)
+        test_project.register_t2_table(trepo)
 
-    godel_project.set_env(aswan.Envs.TEST)
-    godel_project.run()
+    test_project.set_env(aswan.AswanConfig.test_name)
+    test_project.run()
 
     assert (
-        next(godel_project.handler_events(ghandlers.LinkRoot)).status
+        next(test_project.handler_events(ghandlers.LinkRoot)).status
         == aswan.Statuses.PROCESSED
     )
 
@@ -59,29 +60,29 @@ def test_godel(tmp_path, godel_test_app):
     assert jsdf.shape[0] == 1
     assert jsdf["A"].iloc[0] == 10
     assert (
-        next(godel_project.handler_events(ghandlers.GetMain, limit=1)).content["main"]
+        next(test_project.handler_events(ghandlers.GetMain, limit=1)).content["main"]
         == "Alonzo Church"
     )
 
     cldf = click_trepo.get_full_df()
     assert cldf.shape[0] == 1
-    assert cldf["field4"].iloc[0] == 1000
+    assert cldf["field4"].iloc[0] > 1000
 
-    godel_project.set_env(aswan.Envs.PROD)
-    godel_project.run(with_monitor_process=True)
+    test_project.set_env(aswan.AswanConfig.prod_name)
+    test_project.run(with_monitor_process=True)
 
     found = [
-        pcev.content["main"] for pcev in godel_project.handler_events(ghandlers.GetMain)
+        pcev.content["main"] for pcev in test_project.handler_events(ghandlers.GetMain)
     ]
     assert sorted(found) == ["Alonzo Church", "Entscheidungsproblem"]
-    for pcev in godel_project.handler_events(ghandlers.GetMain, only_successful=False):
+    for pcev in test_project.handler_events(ghandlers.GetMain, only_successful=False):
         if pcev.status == aswan.Statuses.CONNECTION_ERROR:
             assert pcev.url.split("/")[-1] == "Alan_Turing"
 
     pre_exp_df = click_trepo.get_full_df()
-    godel_project.push()
+    test_project.push()
 
-    godel_project.run()
+    test_project.run()
     post_exp_df = click_trepo.get_full_df()
 
     comp_dict = (
@@ -92,7 +93,7 @@ def test_godel(tmp_path, godel_test_app):
     urlcount = Counter(
         [
             pcev.url.split("/")[-1]
-            for pcev in godel_project.handler_events(
+            for pcev in test_project.handler_events(
                 ghandlers.Clicker, only_latest=False
             )
         ]
@@ -105,5 +106,10 @@ def test_godel(tmp_path, godel_test_app):
             assert v == 1
     assert len(urlcount) == 3
 
-    godel_project.pull()
+    test_project.pull(force=True)
     assert click_trepo.get_full_df().equals(pre_exp_df)
+
+    test_project.add_urls_to_handler(ghandlers.GetMain, ["/test_page/Axiom.html"], True)
+    test_project.set_env(aswan.AswanConfig.exp_name)
+    test_project.run()
+    assert click_trepo.get_full_df().shape[0] == 0

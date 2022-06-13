@@ -1,17 +1,11 @@
 import hashlib
 import json
 import pickle
-import tarfile
-import tempfile
-from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Union
-
-import s3fs
+from typing import Union
 
 
-class ObjectStoreBase(ABC):
+class ObjectStore:
     """
     class for storing and retrieving objects downloaded
 
@@ -19,40 +13,27 @@ class ObjectStoreBase(ABC):
     """
 
     def __init__(self, root):
-        self._root = root
+        self.root_path = Path(root)
+        self.root_path.mkdir(parents=True, exist_ok=True)
 
-    @abstractmethod
-    def open(self, path, method):
-        pass
-
-    @abstractmethod
     def purge(self):
-        pass
+        for p in self.root_path.iterdir():
+            p.unlink()
+        self.root_path.rmdir()
 
-    @abstractmethod
-    def _local_iter(self):
-        pass
+    def dump_json(self, obj: Union[list, dict]) -> str:
+        return self.dump_str(json.dumps(obj), "json")
 
-    def dump_json(self, obj: Union[list, dict], path: Optional[str] = None) -> str:
-        return self.dump_str(json.dumps(obj), path, ".json")
+    def dump_str(self, s: str, extension: str = "") -> str:
+        return self.dump_bytes(s.encode("utf-8"), extension)
 
-    def dump_str(self, s: str, path: Optional[str] = None, extension: str = "") -> str:
-        return self.dump_bytes(s.encode("utf-8"), path, extension)
+    def dump_pickle(self, obj) -> str:
+        return self.dump_bytes(pickle.dumps(obj), ".pkl")
 
-    def dump_pickle(self, obj, path: Optional[str] = None) -> str:
-        return self.dump_bytes(pickle.dumps(obj), path, ".pkl")
-
-    def dump_bytes(
-        self, buf: bytes, path: Optional[str] = None, extension: str = ""
-    ) -> str:
-        full_path = self._get_abs_path(path, buf, extension)
-        with self.open(full_path, "wb") as fp:
-            fp.write(buf)
-        return full_path.replace(self._root + "/", "", 1)
-
-    def dump_tar(self, tarpath: Path):
-        with tarfile.open(tarpath, "r:gz") as tar:
-            tar.extractall(self._root)
+    def dump_bytes(self, buf: bytes, extension: str = "") -> str:
+        full_path = self.root_path / f"{hashlib.md5(buf).hexdigest()}.{extension}"
+        full_path.write_bytes(buf)
+        return full_path.name
 
     def read_json(self, path: str) -> Union[list, dict]:
         return json.loads(self.read_str(path))
@@ -64,66 +45,4 @@ class ObjectStoreBase(ABC):
         return pickle.loads(self.read_bytes(path))
 
     def read_bytes(self, path: str) -> bytes:
-        full_path = self._get_abs_path(path)
-        with self.open(full_path, "rb") as fp:
-            return fp.read()
-
-    def _get_abs_path(
-        self,
-        path: Optional[str],
-        buf: Optional[bytes] = None,
-        extension: str = "",
-    ) -> str:
-        if path is None:
-            path = hashlib.md5(buf).hexdigest() + extension
-
-        if path.startswith(self._root):
-            return path
-        return f"{self._root}/{path}"
-
-    @contextmanager
-    def tarcontext(self):
-        with tempfile.TemporaryDirectory() as tfd:
-            tarpath = Path(tfd) / "temp"
-            with tarfile.open(tarpath, "w:gz") as tar:
-                for local_abs_path, name in self._local_iter():
-                    tar.add(local_abs_path, arcname=name)
-            yield tarpath
-
-
-class LocalObjectStore(ObjectStoreBase):
-    def open(self, path, method):
-        return open(path, method)
-
-    def purge(self):
-        for p, _ in self._local_iter():
-            Path(p).unlink()
-
-    def _local_iter(self):
-        for p in Path(self._root).iterdir():
-            yield (p.as_posix(), p.name)
-
-
-class S3ObjectStore(ObjectStoreBase):
-    def __init__(self, root: str):
-        super().__init__(root)
-        self._fs = s3fs.S3FileSystem(anon=False)
-
-    def open(self, path, method):
-        return self._fs.open(path, method)
-
-    def purge(self):
-        for p in self._fs.ls(self._root):
-            self._fs.delete(p)
-
-    def _local_iter(self):
-        for p in self._fs.ls(self._root):
-            with tempfile.NamedTemporaryFile() as tfp:
-                tfp.write(self.read_bytes(p))
-                yield (tfp.name, p)
-
-
-def get_object_store(root: str):
-    if root.startswith("s3://"):
-        return S3ObjectStore(root)
-    return LocalObjectStore(root)
+        return (self.root_path / path).read_bytes()

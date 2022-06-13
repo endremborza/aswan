@@ -16,7 +16,7 @@ HEADERS = {
 N_PROCESSES = cpu_count() * 2
 
 CONFIG_PATH = Path.home() / ".config" / "aswan"
-CONFIG_PATH.mkdir(exist_ok=True, parents=True)
+
 
 url_root_regex = re.compile(r"^(?://|[^/]+)*/")
 
@@ -36,13 +36,3 @@ class Statuses:
     PARSING_ERROR = "parsing_error"
     CONNECTION_ERROR = "connection_error"
     SESSION_BROKEN = "session_broken"
-
-
-class Envs:
-    PROD = "prod"
-    EXP = "exp"
-    TEST = "test"
-
-    @classmethod
-    def all(cls):
-        return [cls.PROD, cls.EXP, cls.TEST]

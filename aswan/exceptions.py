@@ -1,4 +1,4 @@
-class RequestError(Exception):
+class ConnectionError(Exception):
     pass
 
 

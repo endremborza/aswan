@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Iterable, List, Optional
 
 import pandas as pd
 from parquetranger import TableRepo
 
-from .url_handler import UrlHandler
-
 if TYPE_CHECKING:
-    from aswan.project.core import ParsedCollectionEvent
+    from .project import ParsedCollectionEvent
 
 
 class T2Integrator(ABC):
@@ -20,56 +18,41 @@ class FlexibleDfParser(T2Integrator):
     """parses all content in cls.handlers to dataframes
 
     converts dicts to lists of dicts by default
-
-    set class prop 'method' to extend/replace_inds/replace_all
     """
 
-    method = "extend"
-    by_groups = False
     handlers: Optional[List] = None
 
-    _fix = "flex"  # "felx/conc/rec"
-
-    def parse_pcevlist(self, cevs: List["ParsedCollectionEvent"]):
+    def parse_pcevlist(self, pcevs: Iterable["ParsedCollectionEvent"]):
         out = []
         handler_names = _handlers_to_name(self.handlers)
-        for cev in cevs:
-            if (self.handlers is None) or (cev.handler_name in handler_names):
-                cev_content = cev.content
-                df_base = cev_content
-                if (self._fix == "rec") or (
-                    self._fix == "flex" and isinstance(cev_content, dict)
-                ):
-                    df_base = [cev_content]
-                out.append(pd.DataFrame(df_base).assign(**self.url_parser(cev.url)))
+        for pcev in pcevs:
+            if (self.handlers is None) or (pcev.handler_name in handler_names):
+                df_base = self.wrap_content(pcev.content)
+                url_dic = self.url_parser(pcev.url)
+                if url_dic:
+                    df_base = [{**d, **url_dic} for d in df_base]
+                out += df_base
         if not out:
             return
-        new_df = pd.concat(out).pipe(self.proc_df)
-        trepo = self.get_t2_table()
-        if self.method == "extend":
-            trepo.extend(new_df)
-        elif self.method == "replace_inds":
-            trepo.replace_records(new_df, by_groups=self.by_groups)
-        elif self.method == "replace_all":
-            trepo.replace_all(new_df)
+        self.write_df(pd.DataFrame(out).pipe(self.proc_df))
 
-    def url_parser(self, url):
+    @staticmethod
+    def url_parser(url: str):
         return {}
 
-    def proc_df(self, df):
+    @staticmethod
+    def proc_df(df: pd.DataFrame):
         return df
 
+    @staticmethod
+    def wrap_content(content):
+        if isinstance(content, dict):
+            return [content]
+        return content
+
     @abstractmethod
-    def get_t2_table(self) -> TableRepo:
+    def write_df(self, df: pd.DataFrame) -> TableRepo:
         pass  # pragma: nocover
-
-
-class ConcatToT2(FlexibleDfParser):
-    _fix = "conc"  # "felx/conc/rec"
-
-
-class RecordsToT2(FlexibleDfParser):
-    _fix = "rec"  # "felx/conc/rec"
 
 
 def _handlers_to_name(handlers):
@@ -79,10 +62,7 @@ def _handlers_to_name(handlers):
     for h in handlers:
         if isinstance(h, str):
             hname = h
-        elif isinstance(h, UrlHandler):
-            hname = h.name
-        else:
-            hname = h().name
-
+        elif isinstance(h, type):
+            hname = h.__name__
         out.append(hname)
     return out

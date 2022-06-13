@@ -76,8 +76,10 @@ class ProxyBase:
             ppath.write_text(json.dumps(host))
 
     def _get_path(self):
-        proxy_name = type(self).__name__
-        return CONFIG_PATH / f"{proxy_name}_hosts.json".lower()
+        proxy_name = type(self).__name__.lower()
+        file_path = CONFIG_PATH / f"{proxy_name}_hosts.json"
+        file_path.parent.mkdir(exist_ok=True, parents=True)
+        return file_path
 
 
 class NoProxy(ProxyBase):

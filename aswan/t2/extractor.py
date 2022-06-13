@@ -1,7 +1,5 @@
-import os
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
-import pandas as pd
 from structlog import get_logger
 
 from .types import (
@@ -154,35 +152,6 @@ class ParsedObject:
     def _init_records(self):
         if self._records is None:
             self._records = []
-
-
-class Parser:
-    f"""
-    parse json serialized objects
-    list or dict
-    so keys can only be str
-    and values as in _T_NODE: {_T_NODE}
-    """
-
-    def __init__(self, prefix="", **named_esxtractors: RecordExtractor):
-        self._prefix = prefix + "_" if prefix else ""
-        self.extractor_dic: Dict[str, RecordExtractor] = named_esxtractors
-        for extractor_name, extractor in named_esxtractors.items():
-            setattr(self, extractor_name, [] if extractor.id_key is None else {})
-
-    def process_obj(self, obj):
-        for extractor_name, extractor in self.extractor_dic.items():
-            extractor.add_to_object(obj, getattr(self, extractor_name))
-
-    def dump_to_dir(self, dirname: str):
-        for kname in self.extractor_dic.keys():
-            recs = getattr(self, kname)
-            fpath = os.path.join(dirname, f"{self._prefix}{kname}.parquet")
-            if isinstance(recs, list):
-                df_base = recs
-            else:
-                df_base = recs.values()  # TODO: nooo
-            pd.DataFrame(df_base).to_parquet(fpath)
 
 
 def _get_unstack_and_keys(current_key, obj):

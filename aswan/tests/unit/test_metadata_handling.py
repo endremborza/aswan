@@ -1,11 +1,12 @@
 import time
 
+from aswan import RequestHandler
 from aswan.constants import Statuses
 from aswan.metadata_handling import (
+    add_urls_to_handler,
     expire_surls,
-    get_next_surl_batch,
+    get_next_batch,
     purge_db,
-    register_source_urls,
 )
 from aswan.models import CollectionEvent, SourceUrl
 
@@ -41,45 +42,23 @@ def _getcev(
 
 
 def test_register(dbsession):
-    surl1 = _getsurl()
+    class A(RequestHandler):
+        pass
 
-    dbsession.add(surl1)
-    dbsession.commit()
+    class B(RequestHandler):
+        pass
 
-    for additions, expected_count in [
-        ([_getsurl()], 1),
-        ([_getsurl("link-2")], 2),
-        ([_getsurl(), _getsurl("link-2")], 2),
-        ([_getsurl("link-2", "B")], 3),
+    add_urls_to_handler(dbsession, A, ["a", "b", "c"])
+    add_urls_to_handler(dbsession, B, ["x", "y", "z"])
+
+    for urls, handler, expected_count in [
+        ([], A, 6),
+        (["d"], A, 7),
+        (["a"], A, 7),
+        (["x", "y", "a", "b"], B, 9),
     ]:
-        register_source_urls(additions, dbsession)
+        add_urls_to_handler(dbsession, handler, urls)
         assert dbsession.query(SourceUrl).count() == expected_count
-
-    register_source_urls([_getsurl(current_status=Statuses.PROCESSING)], dbsession)
-    assert (
-        dbsession.query(SourceUrl)
-        .filter(SourceUrl.current_status == Statuses.PROCESSED)
-        .count()
-        == 3
-    )
-
-    register_source_urls(
-        [_getsurl("link-2", current_status=Statuses.PROCESSING)],
-        dbsession,
-        overwrite=True,
-    )
-    assert (
-        dbsession.query(SourceUrl)
-        .filter(SourceUrl.current_status == Statuses.PROCESSED)
-        .count()
-        == 2
-    )
-    assert (
-        dbsession.query(SourceUrl)
-        .filter(SourceUrl.current_status == Statuses.PROCESSING)
-        .count()
-        == 1
-    )
 
 
 def test_batch(dbsession):
@@ -90,13 +69,13 @@ def test_batch(dbsession):
     dbsession.add(_getsurl("link-4", current_status=Statuses.PARSING_ERROR))
     dbsession.commit()
 
-    batch = get_next_surl_batch(10, dbsession)
+    batch = get_next_batch(dbsession, 10)
     assert len(batch) == 3
     assert sorted([Statuses.TODO, Statuses.EXPIRED, Statuses.SESSION_BROKEN]) == sorted(
         [su.current_status for su in batch]
     )
 
-    assert len(get_next_surl_batch(2, dbsession)) == 2
+    assert len(get_next_batch(dbsession, 2)) == 2
 
 
 def test_expiry(dbsession):

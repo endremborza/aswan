@@ -1,18 +1,20 @@
+import json
 import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, List, Optional, Type, Union
+from urllib.parse import urljoin
 
+import requests
 from structlog import get_logger
 
 if TYPE_CHECKING:
-    import requests  # pragma: no cover
     from bs4 import BeautifulSoup  # pragma: no cover
     from selenium.webdriver import Chrome  # pragma: no cover
 
 logger = get_logger()
 
 
-class _HandlerBase:
+class UrlHandlerBase:
     starter_urls: Iterable[str] = []
     test_urls: Iterable[str] = []
     url_root: Optional[str] = None
@@ -22,9 +24,56 @@ class _HandlerBase:
     max_retries: int = 2
     initiation_retries: int = 2
     wait_on_initiation_fail: int = 20
-
     restart_session_after: int = 50
-    # TODO: make ignore cookies possible
+    # TODO: make ignore/transfer cookies possible
+
+    def __init__(self):
+        self._registered_links = []
+        self._url: Optional[str] = None
+        self.expiration_seconds = self.default_expiration
+
+    def set_url(self, url):
+        self._url = url
+
+    def pre_parse(self, blob):
+        return blob
+
+    def set_expiration(self, exp_secs):
+        self.expiration_seconds = exp_secs
+
+    def reset_expiration(self):
+        self.expiration_seconds = self.default_expiration
+
+    def register_links_to_handler(
+        self,
+        links: Iterable[str],
+        handler_cls: Optional[Type["ANY_HANDLER_T"]] = None,
+        expiration_time: Optional[int] = None,
+    ):
+        if handler_cls is None:
+            handler_cls = type(self)
+        if expiration_time is None:
+            if handler_cls == type(self):
+                expiration_time = self.expiration_seconds
+            else:
+                expiration_time = handler_cls.default_expiration
+        self._registered_links += [
+            RegisteredLink(
+                handler_cls=handler_cls,
+                url=self.extend_link(link),
+                expiration=expiration_time,
+            )
+            for link in links
+        ]
+
+    def pop_registered_links(self) -> List["RegisteredLink"]:
+        out = self._registered_links
+        self._registered_links = []
+        return out
+
+    @classmethod
+    def extend_link(cls, link: str) -> str:
+        return urljoin(cls.url_root, link)
 
     @property
     def name(self):
@@ -43,97 +92,89 @@ class _HandlerBase:
         return 0
 
 
-class UrlHandler(_HandlerBase):
-    needs_browser: bool = False
-    headless: bool = False
-    eager: bool = False
-    parses_raw: bool = False
-    parses_json: bool = False
+class RequestHandler(UrlHandlerBase):
+    def parse(self, blob):
+        return blob
 
-    def __init__(self):
-        self._registered_links = []
-        # self.register_links_to_handler(self.starter_urls)  ??
-        self._url: Optional[str] = None
-        self.expiration_seconds = self.default_expiration
+    def handle_driver(self, session: "requests.Session"):
+        """handle session every time before getting url"""
 
-    def parse_soup(self, soup: "BeautifulSoup"):
-        """parse bs4 soup"""
-
-    def parse_json(self, obj: Union[list, dict]):
-        """if parses_json is true"""
-
-    def parse_raw(self, s: str):
-        """if parses_raw is true"""
-
-    def handle_browser(self, driver: "Chrome"):
-        """if returns something, parse soup is not called"""
-
-    def start_rsession(self, rsession: "requests.Session"):
+    def start_session(self, session: "requests.Session"):
         """starts session if no browser needed"""
 
-    def start_browser_session(self, browser: "Chrome"):
+    def is_session_broken(self, result: Union[int, Exception]):
+        """either response code, or exception"""
+        # for determining to restart the session,
+        # or proceed with handling connection error
+        if isinstance(result, int):
+            return result != 404
+        return True
+
+
+class BrowserHandler(UrlHandlerBase):
+    headless: bool = False
+    eager: bool = False
+
+    def parse(self, source):
+        return source
+
+    def handle_driver(self, driver: "Chrome"):
+        """if returns something, that is forwarded to parse"""
+
+    def start_session(self, browser: "Chrome"):
         """start session if browser is needed"""
 
-    def register_links_to_handler(
-        self,
-        links: Iterable[str],
-        handler_cls: Optional[Type["UrlHandler"]] = None,
-    ):
-        self._register_links_to_handler(links, handler_cls)
+    def is_session_broken(self, result: Exception):
+        """exception when getting source
 
-    def register_link_to_handler(
-        self,
-        link: str,
-        handler_cls: Optional[Type["UrlHandler"]] = None,
-    ):
-        self._register_links_to_handler([link], handler_cls)
-
-    def pop_registered_links(self) -> List["RegisteredLink"]:
-        out = self._registered_links
-        self._registered_links = []
-        return out
-
-    def set_url(self, url):
-        self._url = url
-
-    def set_expiration(self, exp_secs):
-        self.expiration_seconds = exp_secs
-
-    def reset_expiration(self):
-        self.expiration_seconds = self.default_expiration
-
-    @classmethod
-    def extend_link(cls, link: str) -> str:
-        # TODO: this is shit
-        if cls.url_root is None:
-            return link
-        if link.startswith(cls.url_root):
-            return link
-        if link.startswith("/"):
-            return cls.url_root + link
-        return link
-
-    def _register_links_to_handler(
-        self,
-        links: Iterable[str],
-        handler_cls: Optional[Type["UrlHandler"]],
-    ):
-        if handler_cls is None:
-            handler_cls = type(self)
-        self._registered_links += [
-            RegisteredLink(
-                handler_name=handler_cls.__name__,
-                url=self.extend_link(link),
-            )
-            for link in links
-        ]
+        if error occurs during handle browser, it comes here
+        """
+        return True
 
 
-class UrlJsonHandler(UrlHandler):
-    parses_json = True
+ANY_HANDLER_T = Union[RequestHandler, BrowserHandler]
+
+
+class _SoupMixin:
+    def pre_parse(self, blob: bytes):
+        from bs4 import BeautifulSoup
+
+        return BeautifulSoup(blob, "html5lib")
+
+    def parse(self, soup: "BeautifulSoup"):
+        """parse bs4 soup"""
+        return soup
+
+
+class _JsonMixin:
+    def pre_parse(self, blob: bytes):
+        # except JSONDecodeError:
+        # json.loads(BeautifulSoup(resp, "html5lib").text)
+        return json.loads(blob)
+
+    def parse(self, obj: dict):
+        """if parses_json is true"""
+        return obj
+
+
+class RequestSoupHandler(_SoupMixin, RequestHandler):
+    pass
+
+
+class RequestJsonHandler(_JsonMixin, RequestHandler):
+    pass
+
+
+class BrowserSoupHandler(_SoupMixin, BrowserHandler):
+    pass
+
+
+class BrowserJsonHandler(_JsonMixin, BrowserHandler):
+    pass
 
 
 @dataclass
 class RegisteredLink:
-    handler_name: str
+    handler_cls: Type[ANY_HANDLER_T]
     url: str
+    expiration: int
