@@ -99,6 +99,11 @@ class Project:
         self._t2_tables[tabrepo.name] = tabrepo
         return tabrepo
 
+    def register_proxy(self, proxy: Type[ProxyBase]):
+        pdata = ProxyData(proxy)
+        self._proxy_dic[pdata.name] = pdata
+        return proxy
+
     def register_module(self, mod):
         for e in mod.__dict__.values():
             if is_handler(e):
@@ -106,7 +111,7 @@ class Project:
             elif is_t2_integrator(e):
                 self.register_t2_integrator(e)
             elif is_proxy_base(e):
-                self.add_proxies([e])
+                self.register_proxy(e)
             elif isinstance(e, TableRepo):
                 self.register_t2_table(e)
 
@@ -133,14 +138,6 @@ class Project:
             handler, only_successful, only_latest, limit
         ):
             yield ParsedCollectionEvent(cev, self)
-
-    def add_proxies(self, proxies: Type[ProxyBase]):
-        for p in proxies:
-            pd = ProxyData(p)
-            self._proxy_dic[pd.name] = pd
-        logger.info(
-            f"added proxies {self._proxy_dic}",
-        )
 
     def integrate_to_t2(self, redo=False):
         # TODO - make it way better
