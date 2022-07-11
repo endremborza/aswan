@@ -159,15 +159,19 @@ class ConnectionSession(ActorBase):
             outfile = None
             _info = {**out, "proxy": self.proxy_host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
-        return UrlHandlerResult(
-            handler_name=task.handler_name,
-            url=task.url,
-            timestamp=int(time.time()),
-            output_file=outfile,
-            status=status,
-            expiration_seconds=task.handler.expiration_seconds,
-            registered_links=task.handler.pop_registered_links(),
-        )
+        try:
+            logger.info("returning")
+            return UrlHandlerResult(
+                handler_name=task.handler_name,
+                url=task.url,
+                timestamp=int(time.time()),
+                output_file=outfile,
+                status=status,
+                expiration_seconds=task.handler.expiration_seconds,
+                registered_links=task.handler.pop_registered_links(),
+            )
+        except Exception as e:
+            logger.exception(f"{type(e)} - {e} plz")
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
