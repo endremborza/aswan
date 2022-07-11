@@ -2,12 +2,12 @@ import sys
 import time
 import traceback
 from dataclasses import dataclass, field
-from functools import partial
 from itertools import product
 from typing import Dict, Iterable, List, Optional, Type
 
 import requests
 from atqo import ActorBase, CapabilitySet, SchedulerTask
+from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -248,18 +248,17 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_dict(proxy_data: Iterable[ProxyData]):
+def get_actor_dict(all_proxy_data: Iterable[ProxyData]):
 
     browsets = [[Caps.eager_browser], [Caps.normal_browser]]
     base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
     out = {}
-    for pd, capset in product(proxy_data, base_capsets):
-        full_kwargs = dict(proxy_kls=pd.kls)
+    for proxy_data, capset in product(all_proxy_data, base_capsets):
+        full_kwargs = dict(proxy_kls=proxy_data.kls)
         for cap in capset:
             full_kwargs.update(cap_to_kwarg.get(cap, {}))
-        actor = partial(ConnectionSession, **full_kwargs)
-        actor.__name__ = "Conn"  # TODO hack :(
-        out[CapabilitySet([pd.cap, *capset])] = actor
+        actor = partial_cls(ConnectionSession, **full_kwargs)
+        out[CapabilitySet([proxy_data.cap, *capset])] = actor
 
     return out
 

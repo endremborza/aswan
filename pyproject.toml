@@ -19,7 +19,7 @@ dependencies = [
     "pyyaml",
     "cookiecutter",
     "parquetranger",
-    "atqo",
+    "atqo>=0.1.6",
 ]
 
 [project.optional-dependencies]
