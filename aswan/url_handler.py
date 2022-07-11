@@ -143,6 +143,7 @@ class _SoupMixin:
 
     def parse(self, soup: "BeautifulSoup"):
         """parse bs4 soup"""
+        return soup
 
 
 class _JsonMixin:
