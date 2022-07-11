@@ -27,7 +27,7 @@ jobs:
         pip install -e .[test]
     - name: Test
       run: |
-        branb test
+        branb test --v
     - name: "Upload coverage to Codecov"
       uses: codecov/codecov-action@v2
       with:
