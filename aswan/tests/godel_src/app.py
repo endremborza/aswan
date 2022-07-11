@@ -7,6 +7,9 @@ from typing import Optional
 
 import requests
 from flask import Flask, request, send_from_directory
+from structlog import get_logger
+
+logger = get_logger()
 
 app = Flask(__name__, static_url_path="")
 test_app_default_port = 5000
@@ -38,12 +41,13 @@ class AppRunner:
     def start(self):
         self._process = Process(target=self._run_app)
         self._process.start()
-        while True:
+        for i in range(10):
             try:
                 requests.get(self.app_address, timeout=15)
                 break
-            except requests.exceptions.ConnectionError:
-                pass
+            except requests.exceptions.ConnectionError as e:
+                if i > 5:
+                    logger.exception(f"{type(e)} - {e}")
             time.sleep(0.2)
         return self
 
