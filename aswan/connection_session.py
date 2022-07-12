@@ -162,6 +162,14 @@ class ConnectionSession(ActorBase):
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
         try:
             logger.info("returning")
+            print("NAME", task.handler_name)
+            print("URL", task.url)
+            print("timestamp", int(time.time()))
+            print("OF", outfile)
+            print("STATUS", status)
+            print("ESECS", task.handler.expiration_seconds)
+            purls = task.handler.pop_registered_links()
+            print("PURLS")
             return UrlHandlerResult(
                 handler_name=task.handler_name,
                 url=task.url,
@@ -169,10 +177,10 @@ class ConnectionSession(ActorBase):
                 output_file=outfile,
                 status=status,
                 expiration_seconds=task.handler.expiration_seconds,
-                registered_links=task.handler.pop_registered_links(),
+                registered_links=purls,
             )
         except Exception as e:
-            logger.exception(f"{type(e)} - {e} plz")
+            print(f"EEERRRRR {type(e)} - {e} plz")
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
