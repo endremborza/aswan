@@ -107,9 +107,10 @@ class ConnectionSession(ActorBase):
         task.handler.reset_expiration()
         time.sleep(task.handler.get_sleep_time())
         uh_result = self._get_uh_result(task)
+        print("GOT UH RESULT", uh_result)
         if uh_result.status == Statuses.SESSION_BROKEN:
             self._broken_handlers.add(handler_name)
-
+        print("ADDED THING", handler_name)
         self._num_queries += 1
         return uh_result
 
