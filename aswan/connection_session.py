@@ -210,6 +210,7 @@ class BrowserSession:
             caps["pageLoadStrategy"] = "eager"
         logger.info(f"launching browser: {chrome_options.arguments}")
         self.driver = Chrome(options=chrome_options, desired_capabilities=caps)
+        logger.info("browser running")
 
     def stop(self):
         try:
