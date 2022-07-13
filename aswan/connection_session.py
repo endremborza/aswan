@@ -162,11 +162,15 @@ class ConnectionSession(ActorBase):
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
         try:
             logger.info("returning")
-            print("NAME", task.handler_name)
-            print("URL", task.url)
-            print("timestamp", int(time.time()))
             print("OF", outfile)
             print("STATUS", status)
+            print("timestamp", int(time.time()))
+
+            try:
+                print("NAME", task.handler_name)
+            except Exception as e:
+                print(f"EEERRRRR {type(e)} - {e} plz")
+            print("URL", task.url)
             print("ESECS", task.handler.expiration_seconds)
             purls = task.handler.pop_registered_links()
             print("PURLS")
