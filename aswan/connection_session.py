@@ -10,7 +10,6 @@ from atqo import ActorBase, CapabilitySet, SchedulerTask
 from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from structlog import get_logger
 
 from .constants import HEADERS, Statuses
@@ -160,6 +159,8 @@ class ConnectionSession(ActorBase):
             outfile = None
             _info = {**out, "proxy": self.proxy_host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
+
+        # all stupid debugging here:
         try:
             logger.info("returning", task=task)
             print("OF", outfile)
@@ -169,12 +170,12 @@ class ConnectionSession(ActorBase):
             try:
                 print("NAME", task.handler_name)
             except Exception as e:
-                print(f"EEERRRRR {type(e)} - {e} plz")
+                print(f"ERR 0. {type(e)} - {e} plz")
             print("URL", task.url)
             print("ESECS", task.handler.expiration_seconds)
             purls = task.handler.pop_registered_links()
             print("PURLS")
-            return UrlHandlerResult(
+            out = UrlHandlerResult(
                 handler_name=task.handler_name,
                 url=task.url,
                 timestamp=int(time.time()),
@@ -185,6 +186,8 @@ class ConnectionSession(ActorBase):
             )
         except Exception as e:
             print(f"EEERRRRR {type(e)} - {e} plz")
+
+        return out
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
@@ -211,7 +214,6 @@ class BrowserSession:
 
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
         chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
-        caps = DesiredCapabilities().CHROME
         if sys.platform == "linux":
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--no-sandbox")
@@ -220,9 +222,9 @@ class BrowserSession:
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--headless")
         if self._eager:
-            caps["pageLoadStrategy"] = "eager"
+            chrome_options.page_load_strategy = "eager"
         logger.info(f"launching browser: {chrome_options.arguments}")
-        self.driver = Chrome(options=chrome_options, desired_capabilities=caps)
+        self.driver = Chrome(options=chrome_options)
         logger.info("browser running")
 
     def stop(self):
