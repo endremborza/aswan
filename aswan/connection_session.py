@@ -161,7 +161,7 @@ class ConnectionSession(ActorBase):
             _info = {**out, "proxy": self.proxy_host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
         try:
-            logger.info("returning")
+            logger.info("returning", task=task)
             print("OF", outfile)
             print("STATUS", status)
             print("timestamp", int(time.time()))
