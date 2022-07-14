@@ -10,38 +10,32 @@ AswanConfig
 
    .. autosummary::
 
-      ~AswanConfig.exp
-      ~AswanConfig.prod
-      ~AswanConfig.remote_root
+      ~AswanConfig.env_dict
+      ~AswanConfig.exp_name
+      ~AswanConfig.prod_name
       ~AswanConfig.t2_root_dic
-      ~AswanConfig.test
+      ~AswanConfig.test_name
 
    .. rubric:: Methods Summary
 
    .. autosummary::
 
-      ~AswanConfig.default_from_dir
-      ~AswanConfig.env_dict
-      ~AswanConfig.env_items
-      ~AswanConfig.get_db_dicts
       ~AswanConfig.get_prod_table
-      ~AswanConfig.load
-      ~AswanConfig.save
+      ~AswanConfig.pull
+      ~AswanConfig.purge
+      ~AswanConfig.push
 
    .. rubric:: Attributes Documentation
 
-   .. autoattribute:: exp
-   .. autoattribute:: prod
-   .. autoattribute:: remote_root
+   .. autoattribute:: env_dict
+   .. autoattribute:: exp_name
+   .. autoattribute:: prod_name
    .. autoattribute:: t2_root_dic
-   .. autoattribute:: test
+   .. autoattribute:: test_name
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: default_from_dir
-   .. automethod:: env_dict
-   .. automethod:: env_items
-   .. automethod:: get_db_dicts
    .. automethod:: get_prod_table
-   .. automethod:: load
-   .. automethod:: save
+   .. automethod:: pull
+   .. automethod:: purge
+   .. automethod:: push
