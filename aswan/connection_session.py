@@ -106,10 +106,8 @@ class ConnectionSession(ActorBase):
         task.handler.reset_expiration()
         time.sleep(task.handler.get_sleep_time())
         uh_result = self._get_uh_result(task)
-        print("GOT UH RESULT", uh_result)
         if uh_result.status == Statuses.SESSION_BROKEN:
             self._broken_handlers.add(handler_name)
-        print("ADDED THING", handler_name)
         self._num_queries += 1
         return uh_result
 
@@ -160,34 +158,15 @@ class ConnectionSession(ActorBase):
             _info = {**out, "proxy": self.proxy_host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
 
-        # all stupid debugging here:
-        try:
-            logger.info("returning", task=task)
-            print("OF", outfile)
-            print("STATUS", status)
-            print("timestamp", int(time.time()))
-
-            try:
-                print("NAME", task.handler_name)
-            except Exception as e:
-                print(f"ERR 0. {type(e)} - {e} plz")
-            print("URL", task.url)
-            print("ESECS", task.handler.expiration_seconds)
-            purls = task.handler.pop_registered_links()
-            print("PURLS")
-            out = UrlHandlerResult(
-                handler_name=task.handler_name,
-                url=task.url,
-                timestamp=int(time.time()),
-                output_file=outfile,
-                status=status,
-                expiration_seconds=task.handler.expiration_seconds,
-                registered_links=purls,
-            )
-        except Exception as e:
-            print(f"EEERRRRR {type(e)} - {e} plz")
-
-        return out
+        return UrlHandlerResult(
+            handler_name=task.handler_name,
+            url=task.url,
+            timestamp=int(time.time()),
+            output_file=outfile,
+            status=status,
+            expiration_seconds=task.handler.expiration_seconds,
+            registered_links=task.handler.pop_registered_links(),
+        )
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
