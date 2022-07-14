@@ -1,5 +1,4 @@
 import re
-from multiprocessing import cpu_count
 from pathlib import Path
 
 HEADERS = {
@@ -13,7 +12,6 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:76.0)"
     " Gecko/20100101 Firefox/76.0",
 }
-N_PROCESSES = cpu_count() * 2
 
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 
