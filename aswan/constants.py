@@ -1,5 +1,4 @@
 import re
-from multiprocessing import cpu_count
 from pathlib import Path
 
 HEADERS = {
@@ -13,10 +12,9 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:76.0)"
     " Gecko/20100101 Firefox/76.0",
 }
-N_PROCESSES = cpu_count() * 2
 
 CONFIG_PATH = Path.home() / ".config" / "aswan"
-CONFIG_PATH.mkdir(exist_ok=True, parents=True)
+
 
 url_root_regex = re.compile(r"^(?://|[^/]+)*/")
 
@@ -36,13 +34,3 @@ class Statuses:
     PARSING_ERROR = "parsing_error"
     CONNECTION_ERROR = "connection_error"
     SESSION_BROKEN = "session_broken"
-
-
-class Envs:
-    PROD = "prod"
-    EXP = "exp"
-    TEST = "test"
-
-    @classmethod
-    def all(cls):
-        return [cls.PROD, cls.EXP, cls.TEST]

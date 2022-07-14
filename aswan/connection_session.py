@@ -1,33 +1,34 @@
-import json
 import sys
 import time
 import traceback
 from dataclasses import dataclass, field
-from functools import partial
 from itertools import product
-from json.decoder import JSONDecodeError
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Type
 
 import requests
 from atqo import ActorBase, CapabilitySet, SchedulerTask
-from bs4 import BeautifulSoup
+from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from structlog import get_logger
 
 from .constants import HEADERS, Statuses
-from .exceptions import BrokenSessionError, RequestError
-from .object_store import ObjectStoreBase
+from .exceptions import BrokenSessionError, ConnectionError
+from .object_store import ObjectStore
 from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase, ProxyData
-from .url_handler import RegisteredLink, UrlHandler
+from .url_handler import (
+    ANY_HANDLER_T,
+    BrowserHandler,
+    RegisteredLink,
+    RequestSoupHandler,
+)
 from .utils import add_url_params
 
 logger = get_logger()
 
 EXCEPTION_STATUSES = {
-    RequestError: Statuses.CONNECTION_ERROR,
+    ConnectionError: Statuses.CONNECTION_ERROR,
     BrokenSessionError: Statuses.SESSION_BROKEN,
 }
 DEFAULT_EXCEPTION_STATUS = Statuses.PARSING_ERROR
@@ -41,48 +42,31 @@ class UrlHandlerResult:
     timestamp: int
     output_file: Optional[str]
     expiration_seconds: Optional[int]
-
     registered_links: List["RegisteredLink"] = field(default_factory=list)
 
 
 @dataclass
 class HandlingTask:
 
-    handler: UrlHandler
+    handler: ANY_HANDLER_T
     url: str
-    object_store: ObjectStoreBase
+    object_store: ObjectStore
 
-    def get_scheduler_task(self, proxy_dic) -> SchedulerTask:
-        return SchedulerTask(
-            argument=self,
-            requirements=get_caps(self.handler, proxy_dic),
-        )
+    def get_scheduler_task(self, proxy_dic: Dict[str, ProxyData]) -> SchedulerTask:
+        caps = [proxy_dic[self.handler.proxy_kind].cap]
+        if isinstance(self.handler, BrowserHandler):
+            if not self.handler.headless:
+                caps.append(Caps.display)
+            if self.handler.eager:
+                caps.append(Caps.eager_browser)
+            else:
+                caps.append(Caps.normal_browser)
+
+        return SchedulerTask(argument=self, requirements=caps)
 
     @property
     def handler_name(self):
         return self.handler.name
-
-
-def get_caps(handler: UrlHandler, proxy_dic: Dict[str, ProxyData]):
-
-    try:
-        p_data = proxy_dic[handler.proxy_kind]
-    except KeyError:
-        logger.warning(
-            f"couldn't find proxy {handler.proxy_kind}",
-            available=list(proxy_dic.keys()),
-        )
-        p_data = proxy_dic[DEFAULT_PROXY.name]
-
-    caps = [p_data.cap]
-    if handler.needs_browser:
-        if not handler.headless:
-            caps.append(Caps.display)
-        if handler.eager:
-            caps.append(Caps.eager_browser)
-        else:
-            caps.append(Caps.normal_browser)
-    return caps
 
 
 class ConnectionSession(ActorBase):
@@ -91,14 +75,14 @@ class ConnectionSession(ActorBase):
         is_browser=False,
         headless=True,
         eager=False,
-        proxy_kls=DEFAULT_PROXY,
+        proxy_kls: Type[ProxyBase] = DEFAULT_PROXY,
     ):
         self.is_browser = is_browser
         self.eager = eager
         self._proxy_kls = proxy_kls()
         self.proxy_host = self._proxy_kls.get_new_host()
 
-        self._insess = (
+        self.session = (
             BrowserSession(headless, self.eager)
             if self.is_browser
             else RequestSession()
@@ -106,7 +90,7 @@ class ConnectionSession(ActorBase):
         self._initiated_handlers = set()
         self._broken_handlers = set()
         self._num_queries = 0
-        self._insess.start(self._proxy_kls, self.proxy_host)
+        self.session.start(self._proxy_kls, self.proxy_host)
 
     def consume(self, task: HandlingTask) -> UrlHandlerResult:
         handler_name = task.handler_name
@@ -124,38 +108,39 @@ class ConnectionSession(ActorBase):
         uh_result = self._get_uh_result(task)
         if uh_result.status == Statuses.SESSION_BROKEN:
             self._broken_handlers.add(handler_name)
-
         self._num_queries += 1
         return uh_result
 
     def stop(self):
-        self._insess.stop()
+        self.session.stop()
 
-    def get_parsed_response(self, handler: UrlHandler, url, params=None):
-        """
-        returns json serializable or dies trying
-        """
-        resp = self._insess.get_response_content(handler, url, params)
-        if isinstance(resp, (dict, list)):
-            return resp
-        if handler.parses_raw:
-            return handler.parse_raw(resp)
-        elif handler.parses_json:
+    def get_parsed_response(self, url, handler=RequestSoupHandler(), params=None):
+        """returns json serializable or dies trying"""
+        if params:
+            url = add_url_params(url, params)
+        for attempt in range(handler.max_retries):
             try:
-                ser = json.loads(resp)
-            except JSONDecodeError:
-                ser = json.loads(BeautifulSoup(resp, "html5lib").text)
-            return handler.parse_json(ser)
+                content = self.session.get_response_content(handler, url)
+                if not isinstance(content, int):
+                    # int is non 200 response code
+                    break
+            except Exception as e:
+                content = e
+            logger.warning("Missed try", error=str(content), url=url, attempt=attempt)
+            if handler.is_session_broken(content):
+                raise BrokenSessionError(f"error: {content}")
+            time.sleep(handler.get_retry_sleep_time())
         else:
-            return handler.parse_soup(BeautifulSoup(resp, "html5lib"))
+            raise ConnectionError(f"request resulted in error with status {content}")
+        return handler.parse(handler.pre_parse(content))
 
     def _restart(self, new_proxy=True):
-        self._insess.stop()
+        self.session.stop()
         if new_proxy:
             self.proxy_host = self._proxy_kls.get_new_host()
         self._initiated_handlers = set()
         self._broken_handlers = set()
-        self._insess.start(self._proxy_kls, self.proxy_host)
+        self.session.start(self._proxy_kls, self.proxy_host)
         self._num_queries = 0
 
     def _get_uh_result(
@@ -163,20 +148,15 @@ class ConnectionSession(ActorBase):
         task: HandlingTask,
     ) -> UrlHandlerResult:
         try:
-            out = self.get_parsed_response(task.handler, task.url)
+            out = self.get_parsed_response(task.url, task.handler)
             status = Statuses.PROCESSED
+            outfile = task.object_store.dump_json(out) if out is not None else out
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
-            logger.warning(
-                "Error while getting parsed response",
-                handler=task.handler_name,
-                url=task.url,
-                proxy_fstring=self.proxy_host,
-                **out,
-            )
-
-        outfile = task.object_store.dump_json(out) if out is not None else out
+            outfile = None
+            _info = {**out, "proxy": self.proxy_host, "status": status}
+            logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
 
         return UrlHandlerResult(
             handler_name=task.handler_name,
@@ -188,10 +168,10 @@ class ConnectionSession(ActorBase):
             registered_links=task.handler.pop_registered_links(),
         )
 
-    def _initiate_handler(self, handler: UrlHandler):
+    def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
             try:
-                self._insess.initiate_handler(handler)
+                handler.start_session(self.session.driver)
                 self._initiated_handlers.add(handler.name)
                 return True
             except Exception as e:
@@ -209,88 +189,55 @@ class BrowserSession:
     def __init__(self, headless: bool, eager: bool):
         self._headless = headless
         self._eager = eager
-        self.browser: Optional[Chrome] = None
+        self.driver: Optional[Chrome] = None
 
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
         chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
-        caps = DesiredCapabilities().CHROME
         if sys.platform == "linux":
             chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--no-sandbox")  # linux only
+            chrome_options.add_argument("--no-sandbox")
         if self._headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--headless")
         if self._eager:
-            caps["pageLoadStrategy"] = "eager"
+            chrome_options.page_load_strategy = "eager"
         logger.info(f"launching browser: {chrome_options.arguments}")
-        self.browser = Chrome(options=chrome_options, desired_capabilities=caps)
+        self.driver = Chrome(options=chrome_options)
+        logger.info("browser running")
 
     def stop(self):
         try:
-            self.browser.close()
+            self.driver.close()
         except WebDriverException:
             logger.warning("could not stop browser")
 
-    def initiate_handler(self, handler: "UrlHandler"):
-        handler.start_browser_session(self.browser)
-
-    def get_response_content(
-        self,
-        handler: UrlHandler,
-        url: str,
-        params: Optional[dict] = None,
-    ):
-        if params:
-            url = add_url_params(url, params)
-        self.browser.get(url)
-
-        out = handler.handle_browser(self.browser)
+    def get_response_content(self, handler: ANY_HANDLER_T, url: str):
+        self.driver.get(url)
+        out = handler.handle_driver(self.driver)
         if out is not None:
             return out
-
-        return self.browser.page_source
+        return self.driver.page_source
 
 
 class RequestSession:
     def __init__(self):
-        self.rsession: Optional[requests.Session] = None
+        self.driver: Optional[requests.Session] = None
 
     def start(self, proxy_kls: ProxyBase, proxy_host: str):
-        self.rsession = requests.Session()
-        self.rsession.headers.update(HEADERS)
-        self.rsession.proxies.update(proxy_kls.rdict_from_host(proxy_host))
+        self.driver = requests.Session()
+        self.driver.headers.update(HEADERS)
+        self.driver.proxies.update(proxy_kls.rdict_from_host(proxy_host))
 
     def stop(self):
         pass
 
-    def initiate_handler(self, handler: "UrlHandler"):
-        handler.start_rsession(self.rsession)
-
-    def get_response_content(
-        self,
-        handler: UrlHandler,
-        url: str,
-        params: Optional[dict] = None,
-    ):
-        for attempt in range(handler.max_retries):
-            try:
-                resp = self.rsession.get(url, params=params)
-                if resp.ok:
-                    return resp.content
-                req_result = resp.status_code
-            except requests.exceptions.ConnectionError as e:
-                req_result = f"connection error - {e}"
-            logger.warning(
-                "unsuccessful request",
-                req_result=req_result,
-                url=url,
-                attempt=attempt,
-            )
-            if _is_session_broken(req_result):
-                raise BrokenSessionError(f"{req_result} - :(")
-            time.sleep(handler.get_retry_sleep_time())
-        raise RequestError(f"request resulted in error with status {req_result}")
+    def get_response_content(self, handler: ANY_HANDLER_T, url: str):
+        handler.handle_driver(self.driver)
+        resp = self.driver.get(url)
+        if resp.ok:
+            return resp.content
+        return resp.status_code
 
 
 cap_to_kwarg = {
@@ -300,34 +247,21 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_dict(proxy_data: Iterable[ProxyData]):
+def get_actor_dict(all_proxy_data: Iterable[ProxyData]):
 
     browsets = [[Caps.eager_browser], [Caps.normal_browser]]
     base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
     out = {}
-    for pd, capset in product(proxy_data, base_capsets):
-        full_kwargs = dict(proxy_kls=pd.kls)
+    for proxy_data, capset in product(all_proxy_data, base_capsets):
+        full_kwargs = dict(proxy_kls=proxy_data.kls)
         for cap in capset:
             full_kwargs.update(cap_to_kwarg.get(cap, {}))
-        actor = partial(ConnectionSession, **full_kwargs)
-        actor.__name__ = "Conn"  # TODO hack :(
-        out[CapabilitySet([pd.cap, *capset])] = actor
+        actor = partial_cls(ConnectionSession, **full_kwargs)
+        out[CapabilitySet([proxy_data.cap, *capset])] = actor
 
     return out
 
 
-def _is_session_broken(req_res):  # TODO: this might be handle specific
-    if req_res == 404:
-        return False
-    if isinstance(req_res, int):
-        return True
-    if req_res.startswith("connection error - "):
-        return True
-
-
 def _parse_exception(e):
-    return {
-        "e_type": type(e).__name__,
-        "e": str(e),
-        "tb": [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)],
-    }
+    tbl = [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)]
+    return {"e_type": type(e).__name__, "e": str(e), "tb": tbl}

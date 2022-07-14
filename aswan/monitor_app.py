@@ -2,21 +2,17 @@ import datetime as dt
 import os
 import sys
 import time
-from typing import Dict
 
-import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-import plotly.graph_objects as go
-from dash import dcc, html
+from dash import Dash, dash_table, dcc, html
 from dash.dependencies import Input, Output
 from sqlalchemy import func
-from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
-from ..constants import Envs, Statuses
-from ..models import CollectionEvent, SourceUrl
-from ..object_store import ObjectStoreBase
+from .config_class import AswanConfig
+from .constants import Statuses
+from .models import CollectionEvent, SourceUrl
 
 external_stylesheets = [
     "https://codepen.io/chriddyp/pen/bWLwgP.css",
@@ -72,45 +68,36 @@ def update_metrics(store_data):
     )
 
 
-def update_graph_live(store_data):
-    surl_rates = store_data.get("source_url_rate", {})
-
-    fig = go.Figure()
-    for handler, statuses in surl_rates.items():
-        fig.add_trace(
-            go.Bar(
-                x=list(statuses.keys()),
-                y=list(statuses.values()),
-                name=handler,
-            )
-        )
-    fig.update_layout(barmode="stack", xaxis={"categoryorder": "category ascending"})
-    return fig
+def update_status(store_data):
+    surl_rates = store_data.get("source_url_rate", [])
+    df = pd.DataFrame(surl_rates)
+    return dash_table.DataTable(
+        df.to_dict("records"), [{"name": i, "id": i} for i in df.columns]
+    )
 
 
 class MonitorApp:
     def __init__(
         self,
-        engine_dict: Dict[str, Engine],
-        object_stores: Dict[str, ObjectStoreBase],
+        conf: AswanConfig,
         refresh_interval_secs=30,
     ):
-
-        self.app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+        self.conf = conf
+        self.app = Dash(__name__, external_stylesheets=external_stylesheets)
         self.app.layout = html.Div(
             [
                 dcc.Tabs(
                     id="env-tabs",
-                    value=Envs.PROD,
+                    value=AswanConfig.prod_name,
                     children=[
-                        dcc.Tab(label=env, value=env) for env in engine_dict.keys()
+                        dcc.Tab(label=e, value=e) for e in self.conf.env_dict.keys()
                     ],
                 ),
                 html.Div(
                     [
                         html.H4("Collection monitor"),
                         dcc.Store(id="data-store", storage_type="memory"),
-                        dcc.Graph(id="live-update-graph"),
+                        html.Div(id="live-update-status"),
                         html.Div(id="live-update-text", style={"padding": 30}),
                         dcc.Interval(
                             id="interval-component",
@@ -123,8 +110,6 @@ class MonitorApp:
             ],
             style={"padding": 20},
         )
-        self._sessions = {k: sessionmaker(engine) for k, engine in engine_dict.items()}
-        self.object_stores = object_stores
         self._add_callbacks()
 
     def _add_callbacks(self):
@@ -142,20 +127,20 @@ class MonitorApp:
         )(update_metrics)
 
         self.app.callback(
-            Output("live-update-graph", "figure"),
+            Output("live-update-status", "children"),
             [Input("data-store", "data")],
-        )(update_graph_live)
+        )(update_status)
 
         @self.app.server.route("/object_store/<env_id>/<file_id>")
         def get_obj(env_id, file_id):
-            out = self.object_stores[env_id].read_json(file_id)
+            out = self.conf.env_dict[env_id].object_store.read_json(file_id)
             if isinstance(out, dict):
                 return out
             else:
                 return {"list": out}
 
     def update_store(self, _, env_id):
-        session = self._sessions[env_id]()
+        session = sessionmaker(self.conf.env_dict[env_id].get_engine())()
         coll_events = (
             session.query(CollectionEvent)
             .filter(CollectionEvent.timestamp > time.time() - LAST_N_MINS * 60)
@@ -168,14 +153,14 @@ class MonitorApp:
         )
         session.close()
 
-        url_rates = {}
-        for _status, _handler, _count in source_urls_grouped:
-            url_rates[_handler] = {
-                _status: _count,
-                **url_rates.get(_handler, {}),
-            }
+        _df = (
+            pd.DataFrame([*source_urls_grouped], columns=["status", "handler", "count"])
+            .pivot_table(columns="status", index="handler", values="count")
+            .reset_index()
+            .fillna(0)
+        )
         return {
-            "source_url_rate": url_rates,
+            "source_url_rate": _df.to_dict("records"),
             "coll_events": [
                 {
                     "status": ce.status,
@@ -191,10 +176,10 @@ class MonitorApp:
         }
 
 
-def run_monitor_app(conf, port_no=6969, refresh_interval_secs=30):
-    sys.stdout = open(os.devnull, "w")
-    sys.stderr = open(os.devnull, "w")
-    _engines, _obj_stores = conf.get_db_dicts()
-    MonitorApp(_engines, _obj_stores, refresh_interval_secs).app.run_server(
-        port=port_no, debug=False
-    )
+def run_monitor_app(
+    conf, port_no=6969, refresh_interval_secs=30, silent=True, debug=False
+):
+    if silent:
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+    MonitorApp(conf, refresh_interval_secs).app.run_server(port=port_no, debug=debug)

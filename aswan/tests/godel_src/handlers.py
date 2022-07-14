@@ -6,21 +6,20 @@ import aswan
 from aswan.tests.godel_src.app import test_app_default_address
 
 
-class GetMain(aswan.UrlHandler):
+class GetMain(aswan.RequestSoupHandler):
     url_root = test_app_default_address
-    test_urls = ["/test_page/Alonzo_Church.html"]
+    test_urls = ["/test_page/Alonzo_Church.html", "/Nonexistent"]
 
-    def parse_soup(self, soup: BeautifulSoup):
+    def parse(self, soup: BeautifulSoup):
         return {"main": soup.find("b").text.strip()}
 
 
-class Clicker(aswan.UrlHandler):
+class Clicker(aswan.BrowserHandler):
     url_root = test_app_default_address
-    needs_browser = True
     headless = True
-    test_urls = ["/test_page/jstest_bad.html"]
+    test_urls = ["/test_page/jstest.html", "/Nonexistent", "/Broken"]
 
-    def handle_browser(self, browser: Chrome):
+    def handle_driver(self, browser: Chrome):
         browser.find_element(By.ID, "funbut").click()
         out_time = int(browser.find_element(By.ID, "field4").text)
         if int(out_time) > 2000:
@@ -32,26 +31,27 @@ class Clicker(aswan.UrlHandler):
         }
 
 
-class LinkRoot(aswan.UrlHandler):
+class LinkRoot(aswan.RequestSoupHandler):
     url_root = test_app_default_address
     starter_urls = ["/test_page/godel_wiki.html"]
     test_urls = ["/test_page/godel_wiki.html"]
 
-    def parse_soup(self, soup: BeautifulSoup):
+    def parse(self, soup: BeautifulSoup):
         for a in soup.find_all("a"):
             link = a["href"]
             if a.get("id", "") == "interactive":
-                self.register_link_to_handler(link, Clicker)
+                _h = Clicker
             else:
-                self.register_links_to_handler([link], GetMain)
+                _h = GetMain
+            self.register_links_to_handler([link], _h)
 
 
-class JS(aswan.UrlJsonHandler):
+class JS(aswan.RequestJsonHandler):
     url_root = test_app_default_address
     starter_urls = ["/test_page/test_json.json"]
     test_urls = ["/test_page/test_json.json"]
 
-    def parse_json(self, obj):
+    def parse(self, obj):
         return {"url": self._url, **obj}
 
 
