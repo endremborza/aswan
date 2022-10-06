@@ -1,124 +1,117 @@
+from functools import partial
 from multiprocessing import Process, cpu_count
-from typing import Dict, List, Optional, Type
+from typing import Dict, Iterable, List, Optional, Type
 
-from atqo import Scheduler
-from parquetranger import TableRepo
+from atqo import DEFAULT_DIST_API_KEY, DEFAULT_MULTI_API, Scheduler
 from structlog import get_logger
 
-from .config_class import AswanConfig
 from .connection_session import HandlingTask, get_actor_dict
-from .metadata_handling import MetaHandler
-from .models import CollectionEvent, SourceUrl
+from .constants import Statuses
+from .depot import AswanDepot, Status
+from .models import CollEvent, RegEvent, SourceUrl
 from .monitor_app import run_monitor_app
+from .object_store import ObjectStore
 from .resources import REnum
-from .security import ProxyData
-from .security.proxy_base import ProxyBase
-from .t2_integrators import T2Integrator
 from .url_handler import UrlHandlerBase
-from .utils import is_handler, is_proxy_base, is_t2_integrator, run_and_log_functions
+from .utils import is_subclass, run_and_log_functions
 
 logger = get_logger()
 
 
 class Project:
-    """
-    set env with `set_env` function
+    def __init__(
+        self,
+        name: str,
+        local_root: Optional[str] = None,
+        min_queue_size=20,
+        batch_size=40,
+        distributed_api=DEFAULT_MULTI_API,
+        debug=False,
+    ):
 
-    afterwards everything identical, except setup_env
-    function that runs at the beginning of every run
-    and test or exp only run one round
-    - test: resets to base test state
-            adds test_urls
-    - exp: purges everything from exp, copies the first batch from
-           prod surls to exp
-    - prod: finds and sets expired surls
-            adds starter_urls
-    """
+        self.depot = AswanDepot(name, local_root)
+        self.object_store = ObjectStore(self.depot.object_store_path)
+        self.min_queue_size = min_queue_size
+        self.batch_size = batch_size
+        self.distributed_api = distributed_api
+        self.debug = debug
 
-    def __init__(self, name: str, debug=False):
-
-        self.config = AswanConfig(name)
-        self.env_config = self.config.prod
         self._handler_dic: Dict[str, "UrlHandlerBase"] = {}
-        self._t2int_dic: Dict[str, "T2Integrator"] = {}
-        self._t2_tables: Dict[str, TableRepo] = {}
-
-        self._meta = MetaHandler(self.config)
         self._scheduler: Optional[Scheduler] = None
         self._monitor_app_process: Optional[Process] = None
 
-        self._proxy_dic = {UrlHandlerBase.proxy_kind: ProxyData()}
         self._ran_once = False
-        self.debug = debug
+        self._keep_running = True
+        self._is_test = False
 
-        self.add_urls_to_handler = self._meta.add_urls
-        self.reset_surls = self._meta.reset_surls
-        self.push = self.config.push
-        self.pull = self.config.pull
-
-    def set_env(self, env: str):
-        """set env to prod/exp/test
-
-        it is set to prod by default
-        """
-        self.env_config = self.config.env_dict[env]
-        self._meta.set_env(env)
-        for trepo in self._t2_tables.values():
-            trepo.set_env(env)
-
-    def run(self, with_monitor_process: bool = False):
+    def run(
+        self,
+        urls_to_register: Optional[Dict[Type, Iterable[str]]] = None,
+        urls_to_overwrite: Optional[Dict[Type, Iterable[str]]] = None,
+        test_run=False,
+        keep_running=True,
+        force_sync=False,
+    ):
         """run project
-
-        on one of 3 environments:
-        - **test**: totally separate from prod, just to checkout what works
-          only runs one round
-        - **exp**: reads from prod db and object store, but writes to exp
-        - **prod**: reads and writes in prod
 
         test runs on a basic local thread
         """
 
         self._ran_once = False
-        self._prepare_run(with_monitor_process)
-        self._scheduler.process(
-            batch_producer=self._get_next_batch,
-            result_processor=self._meta.process_results,
-            min_queue_size=self.env_config.min_queue_size,
-        )
-        self._finalize_run(with_monitor_process)
+        self._is_test = test_run
+
+        _prep = [
+            self.depot.setup,
+            partial(self._initiate_status, urls_to_register, urls_to_overwrite),
+        ]
+        self._run(force_sync, keep_running, _prep)
+
+    def commit_current_run(self):
+        if self._is_test:
+            raise PermissionError("last run was a test, do not commit it")
+        if self.depot.current.any_in_progress():
+            raise ValueError()
+        # TODO: check if commit hash is same?
+
+        self.depot.save_current()
+        self.cleanup_current_run()
+
+    def cleanup_current_run(self):
+        self.depot.current.purge()
+
+    def continue_run(
+        self,
+        inprogress=True,
+        parsing_error=False,
+        conn_error=False,
+        sess_broken=False,
+        force_sync=False,
+        keep_running=True,
+    ):
+        bool_map = {
+            Statuses.PROCESSING: inprogress,
+            Statuses.PARSING_ERROR: parsing_error,
+            Statuses.CONNECTION_ERROR: conn_error,
+            Statuses.SESSION_BROKEN: sess_broken,
+        }
+        statuses = [s for s, b in bool_map.items() if b]
+        prep = [partial(self.depot.current.reset_surls, statuses)]
+        self._run(force_sync, keep_running, prep)
 
     def register_handler(self, handler: Type["UrlHandlerBase"]):
+        # called for .name to work later and proxy to init
         self._handler_dic[handler.__name__] = handler()
         return handler
 
-    def register_t2_integrator(self, integrator: Type["T2Integrator"]):
-        self._t2int_dic[integrator.__name__] = integrator()
-        return integrator
-
-    def register_t2_table(self, tabrepo: TableRepo):
-        self._t2_tables[tabrepo.name] = tabrepo
-        return tabrepo
-
-    def register_proxy(self, proxy: Type[ProxyBase]):
-        pdata = ProxyData(proxy)
-        self._proxy_dic[pdata.name] = pdata
-        return proxy
-
     def register_module(self, mod):
         for e in mod.__dict__.values():
-            if is_handler(e):
+            if is_subclass(e, UrlHandlerBase):
                 self.register_handler(e)
-            elif is_t2_integrator(e):
-                self.register_t2_integrator(e)
-            elif is_proxy_base(e):
-                self.register_proxy(e)
-            elif isinstance(e, TableRepo):
-                self.register_t2_table(e)
 
     def start_monitor_process(self, port_no=6969):
         self._monitor_app_process = Process(
             target=run_monitor_app,
-            kwargs={"port_no": port_no, "conf": self.config},
+            kwargs={"port_no": port_no, "depot": self.depot},
         )
         self._monitor_app_process.start()
         logger.info(f" monitor app at: http://localhost:{port_no}")
@@ -132,86 +125,46 @@ class Project:
         handler: Type["UrlHandlerBase"],
         only_successful: bool = True,
         only_latest: bool = True,
-        limit=None,
-    ):
-        for cev in self._meta.get_handler_events(
-            handler, only_successful, only_latest, limit
+        limit=float("inf"),
+        past_run_count=0,
+    ) -> Iterable["ParsedCollectionEvent"]:
+        for cev in self.depot.get_handler_events(
+            handler.__name__, only_successful, only_latest, limit, past_run_count
         ):
-            yield ParsedCollectionEvent(cev, self)
-
-    def integrate_to_t2(self, redo=False):
-        # TODO - make it way better
-        # can't do if not pushed/pulled enough
-        # can be problem with table extension
-        # if one elem is integrated multiple times
-        for integrator_name, integrator in self._t2int_dic.items():
-            logger.info(f"running integrator {type(integrator).__name__}")
-            with self._meta.get_non_integrated(integrator_name, redo) as cevs:
-                pcevs = [ParsedCollectionEvent(cev, self) for cev in cevs]
-                try:
-                    integrator.parse_pcevlist(pcevs)
-                except Exception as e:
-                    logger.warning(f"integrator raised error: {type(e).__name__}: {e}")
-                    raise e
-
-    def get_prod_table(self, name, group_cols=None):
-        return self.register_t2_table(self.config.get_prod_table(name, group_cols))
-
-    def purge(self, remote=False):
-        self.config.purge(remote)
-
-    @property
-    def object_store(self):
-        return self.env_config.object_store
+            yield ParsedCollectionEvent(cev.extend(), self)
 
     @property
     def resource_limits(self):
         proxy_limits = {
-            pd.res_id: pd.limit for pd in self._proxy_dic.values() if pd.limit
+            k: p.max_at_once for k, p in self._proxy_dic.items() if p.max_at_once
         }
+        # TODO stupid literals
         return {
             REnum.mCPU: int(cpu_count() * 1000),
             REnum.DISPLAY: 4,
             **proxy_limits,
         }
 
-    def _prepare_run(self, with_monitor_process: bool):
-        prep_functions = []
-        if self._current_env_name in [self.config.test_name, self.config.exp_name]:
-            prep_functions.append(self._purge_env)
-
-        if self._current_env_name in [self.config.prod_name, self.config.exp_name]:
-            prep_functions += [
-                self.reset_surls,
-                self._meta.expire_surls,
-                self._register_starter_urls,
-            ]
-        else:
-            prep_functions.append(self._restore_test_state)
-
-        if self._current_env_name == self.config.exp_name:
-            prep_functions.append(self._move_batch_from_prod_to_exp)
-
-        prep_functions.append(self._create_scheduler)
-
-        if with_monitor_process:
-            prep_functions.append(self.start_monitor_process)
-        run_and_log_functions(
-            prep_functions, function_batch="run_prep", env=self._current_env_name
+    def _run(self, force_sync, keep_running, extra_prep=()):
+        self._keep_running = keep_running
+        _old_da = self.distributed_api
+        if force_sync:
+            self.distributed_api = DEFAULT_DIST_API_KEY
+        run_and_log_functions([*extra_prep, self._create_scheduler], batch="prep")
+        self._scheduler.process(
+            batch_producer=self._get_next_batch,
+            result_processor=self.depot.current.process_results,
+            min_queue_size=self.min_queue_size,
         )
-
-    def _finalize_run(self, with_monitor_process: bool):
-        cleanup_functions = [self._scheduler.join, self.integrate_to_t2]
-        if with_monitor_process:
-            cleanup_functions.append(self.stop_monitor_process)
-        run_and_log_functions(cleanup_functions, function_batch="run_cleanup")
+        run_and_log_functions([self._scheduler.join], batch="cleanup")
+        self.distributed_api = _old_da
 
     def _get_next_batch(self):
-        if self._ran_once and (not self.env_config.keep_running):
+        if self._ran_once and not self._keep_running:
             return []
-        n_to_target = self.env_config.batch_size - self._scheduler.queued_task_count
+        n_to_target = self.batch_size - self._scheduler.queued_task_count
         self._ran_once = True
-        return self._meta.next_batch(
+        return self.depot.current.next_batch(
             max(n_to_target, 0), to_processing=True, parser=self._surls_to_tasks
         )
 
@@ -221,68 +174,64 @@ class Project:
                 handler=self._handler_dic[next_surl.handler],
                 url=next_surl.url,
                 object_store=self.object_store,
-            ).get_scheduler_task(self._proxy_dic)
+            ).get_scheduler_task()
             for next_surl in surl_batch
         ]
 
-    def _purge_env(self):
-        self.object_store.purge()
-        self._meta.purge_db()
-        for trepo in self._t2_tables.values():
-            trepo.purge()
+    def _initiate_status(
+        self,
+        urls_to_register: Optional[Dict[Type[UrlHandlerBase], Iterable[str]]],
+        urls_to_overwrite: Optional[Dict[Type[UrlHandlerBase], Iterable[str]]],
+    ):
+        reg_events = []
+        for url_dic, ovw in [(urls_to_register, False), (urls_to_overwrite, True)]:
+            for handler, urls in (url_dic or {}).items():
+                reg_events.extend(_get_event_bunch(handler, urls, ovw))
 
-    def _restore_test_state(self):
-        self.set_env(self.config.test_name)  # just to be sure
-        return self._register_initial_urls("test")
+        if self._is_test:
+            status = Status()
+            for handler in self._handler_dic.values():
+                reg_events.extend(_get_event_bunch(type(handler), handler.test_urls))
+        else:
+            status = self.depot.get_complete_status()
 
-    def _register_starter_urls(self) -> int:
-        return self._register_initial_urls("starter")
-
-    def _move_batch_from_prod_to_exp(self):
-        n = self.env_config.batch_size
-        self.set_env(self.config.prod_name)
-        surls = self._meta.next_batch(n, expunge=True)
-        self.set_env(self.config.exp_name)
-        self._meta.save(surls)
-
-    def _register_initial_urls(self, url_kind) -> int:
-        n = 0
-        for handler_inst in self._handler_dic.values():
-            handler_cls = type(handler_inst)
-            urls = getattr(handler_cls, f"{url_kind}_urls")
-            self._meta.add_urls(handler_cls, urls)
-            n += len(urls)
-        return n
+        self.depot.set_as_current(status)
+        self.depot.current.integrate_events(reg_events)
 
     def _create_scheduler(self):
-
-        actor_dict = get_actor_dict(self._proxy_dic.values())
-
         self._scheduler = Scheduler(
-            actor_dict=actor_dict,
+            actor_dict=get_actor_dict(self._proxy_dic.values()),
             resource_limits=self.resource_limits,
-            distributed_system=self.env_config.distributed_api,
+            distributed_system=self.distributed_api,  # TODO move test to sync?
             verbose=self.debug,
         )
 
     @property
-    def _current_env_name(self):
-        return self.env_config.name
+    def _proxy_dic(self):
+        return {
+            handler.proxy.res_id: handler.proxy
+            for handler in self._handler_dic.values()
+            if handler.proxy
+        }
 
 
 class ParsedCollectionEvent:
-    def __init__(self, cev: "CollectionEvent", project: Project):
+    def __init__(self, cev: "CollEvent", project: Project):
         self.url = cev.url
         self.handler_name = cev.handler
-        self._output_file = cev.output_file
+        self.output_file = cev.output_file
         self._ostore = project.object_store
         self._time = cev.timestamp
         self.status = cev.status
 
     @property
     def content(self):
-        # TODO it shouldn't be all json
-        return self._ostore.read_json(self._output_file) if self._output_file else None
+        return self._ostore.read(self.output_file) if self.output_file else None
 
     def __repr__(self):
         return f"{self.status}: {self.handler_name} - {self.url} ({self._time})"
+
+
+def _get_event_bunch(handler: Type[UrlHandlerBase], urls, overwrite=False):
+    part = partial(RegEvent, handler=handler.__name__, overwrite=overwrite)
+    return map(part, map(handler.extend_link, urls))

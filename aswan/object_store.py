@@ -1,8 +1,20 @@
 import hashlib
 import json
 import pickle
+import zipfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Union
+from typing import Generator, Union
+
+_COMP_NAME = "content"
+
+
+class _Exts:
+
+    txt = "txt"
+    pkl = "pkl"
+    blob = "blob"
+    json = "json"
 
 
 class ObjectStore:
@@ -12,37 +24,90 @@ class ObjectStore:
     :param root: object store root
     """
 
-    def __init__(self, root):
+    def __init__(
+        self,
+        root,
+        hash_fun=hashlib.sha3_512,
+        prefix_chars: int = 2,
+        compression=zipfile.ZIP_DEFLATED,
+        timeout=60,
+    ):
         self.root_path = Path(root)
-        self.root_path.mkdir(parents=True, exist_ok=True)
+        self.hash_fun = hash_fun
+        self.prefix_chars = prefix_chars
+        self.timeout = timeout
+        self._comp = compression
 
-    def purge(self):
-        for p in self.root_path.iterdir():
-            p.unlink()
-        self.root_path.rmdir()
+    def purge(self, clear_dirs=True):
+        for _dir in self.root_path.iterdir():
+            for p in _dir.iterdir():
+                p.unlink()
+            _dir.rmdir()
+        if clear_dirs:
+            self.root_path.rmdir()
 
-    def dump_json(self, obj: Union[list, dict]) -> str:
-        return self.dump_str(json.dumps(obj), "json")
+    def dump(self, obj: Union[list, dict, str, bytes]):
+        for _t, fun in [
+            ((list, dict), self.dump_json),
+            (str, self.dump_str),
+            (bytes, self.dump_bytes),
+        ]:
+            if isinstance(obj, _t):
+                return fun(obj)
+        return self.dump_pickle(obj)
 
-    def dump_str(self, s: str, extension: str = "") -> str:
-        return self.dump_bytes(s.encode("utf-8"), extension)
+    def dump_json(self, obj: Union[list, dict], ext=None) -> str:
+        return self.dump_str(json.dumps(obj), ext or _Exts.json)
 
-    def dump_pickle(self, obj) -> str:
-        return self.dump_bytes(pickle.dumps(obj), ".pkl")
+    def dump_str(self, s: str, ext=None) -> str:
+        return self.dump_bytes(s.encode("utf-8"), ext or _Exts.txt)
 
-    def dump_bytes(self, buf: bytes, extension: str = "") -> str:
-        full_path = self.root_path / f"{hashlib.md5(buf).hexdigest()}.{extension}"
-        full_path.write_bytes(buf)
-        return full_path.name
+    def dump_pickle(self, obj, ext=None) -> str:
+        return self.dump_bytes(pickle.dumps(obj), ext or _Exts.pkl)
 
-    def read_json(self, path: str) -> Union[list, dict]:
-        return json.loads(self.read_str(path))
+    def dump_bytes(self, buf: bytes, ext=None) -> str:
+        name_hash = self.hash_fun(buf).hexdigest()
+        full_name = _join(".", name_hash, ext or _Exts.blob)
+        full_path = self._get_full_path(full_name)
+        if full_path.exists():
+            return full_name
+        full_path.parent.mkdir(exist_ok=True, parents=True)
+        with self._zip(full_path, "w") as zip_ctx:
+            zip_ctx.writestr(_COMP_NAME, buf)
 
-    def read_str(self, path: str) -> str:
-        return self.read_bytes(path).decode("utf-8")
+        return full_name
 
-    def read_pickle(self, path: str):
-        return pickle.loads(self.read_bytes(path))
+    def read(self, name: str):
+        _ext = name.split(".")[-1]
+        return {
+            _Exts.blob: self.read_bytes,
+            _Exts.json: self.read_json,
+            _Exts.txt: self.read_str,
+            _Exts.pkl: self.read_pickle,
+        }[_ext](name)
 
-    def read_bytes(self, path: str) -> bytes:
-        return (self.root_path / path).read_bytes()
+    def read_json(self, name: str) -> Union[list, dict]:
+        return json.loads(self.read_str(name))
+
+    def read_str(self, name: str) -> str:
+        return self.read_bytes(name).decode("utf-8")
+
+    def read_pickle(self, name: str):
+        return pickle.loads(self.read_bytes(name))
+
+    def read_bytes(self, name: str) -> bytes:
+        with self._zip(self._get_full_path(name), "r") as zip_ctx:
+            return zip_ctx.read(_COMP_NAME)
+
+    def _get_full_path(self, full_name: str) -> Path:
+        dirname = full_name[: self.prefix_chars]
+        return self.root_path / dirname / full_name
+
+    @contextmanager
+    def _zip(self, full_path, mode) -> Generator[zipfile.ZipFile, None, None]:
+        with zipfile.ZipFile(full_path, mode, compression=self._comp) as zip_ctx:
+            yield zip_ctx
+
+
+def _join(sep: str, *elems):
+    return sep.join(filter(None, elems))

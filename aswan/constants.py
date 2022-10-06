@@ -28,9 +28,8 @@ ONE_YEAR = ONE_DAY * 365
 class Statuses:
 
     TODO = "todo"
-    EXPIRED = "expired"
     PROCESSING = "processing"
-    PROCESSED = "processed"
-    PARSING_ERROR = "parsing_error"
-    CONNECTION_ERROR = "connection_error"
-    SESSION_BROKEN = "session_broken"
+    PROCESSED = "D"
+    PARSING_ERROR = "PE"
+    CONNECTION_ERROR = "CE"
+    SESSION_BROKEN = "SB"

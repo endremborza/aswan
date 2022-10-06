@@ -23,6 +23,6 @@ def test_godel_defaults(tmp_path, godel_test_app):
     uh_res = cm.consume(task)
     cm.stop()
 
-    assert uh_res.url == url
-    assert uh_res.handler_name == "H"
-    assert uh_res.status == Statuses.PROCESSED
+    assert uh_res.event.url == url
+    assert uh_res.event.handler == "H"
+    assert uh_res.event.status == Statuses.PROCESSED
