@@ -10,22 +10,17 @@ dependencies = [
     "dash-bootstrap-components",
     "beautifulsoup4",
     "html5lib",
-    "tqdm",
-    "s3fs",
     "selenium",
     "dash",
     "sqlalchemy",
     "structlog",
     "pyyaml",
-    "cookiecutter",
-    "parquetranger",
     "atqo>=0.2.0",
 ]
 
 [project.optional-dependencies]
 test = ["branthebuilder"]
 doc = ["branthebuilder[doc]"]
-parallel = ["atqo[ray,fancy]"]
 
 [project.urls]
 Homepage = "https://github.com/endremborza/aswan"
