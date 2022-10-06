@@ -7,7 +7,6 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "requests",
-    "dash-bootstrap-components",
     "beautifulsoup4",
     "html5lib",
     "selenium",
@@ -19,6 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+monitor = ["pandas","dash","dash-bootstrap-components"]
 test = ["branthebuilder"]
 doc = ["branthebuilder[doc]"]
 

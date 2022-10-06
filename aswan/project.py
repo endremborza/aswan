@@ -9,7 +9,6 @@ from .connection_session import HandlingTask, get_actor_dict
 from .constants import Statuses
 from .depot import AswanDepot, Status
 from .models import CollEvent, RegEvent, SourceUrl
-from .monitor_app import run_monitor_app
 from .object_store import ObjectStore
 from .resources import REnum
 from .url_handler import UrlHandlerBase
@@ -109,6 +108,9 @@ class Project:
                 self.register_handler(e)
 
     def start_monitor_process(self, port_no=6969):
+        # to avoid extra deps
+        from .monitor_app import run_monitor_app
+
         self._monitor_app_process = Process(
             target=run_monitor_app,
             kwargs={"port_no": port_no, "depot": self.depot},
