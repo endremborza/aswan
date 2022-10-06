@@ -5,37 +5,94 @@
 [![codecov](https://img.shields.io/codecov/c/github/endremborza/aswan)](https://codecov.io/gh/endremborza/aswan)
 [![pypi](https://img.shields.io/pypi/v/aswan.svg)](https://pypi.org/project/aswan/)
 
-collect and organize data into a T1 data lake and T2 tables. 
+collect and organize data into a T1 data depot 
 named after the [Aswan Dam](https://en.wikipedia.org/wiki/Aswan_Dam)
 
-## Quickstart
+Collect and compress data from the internet for later parsing
 
+- quick, parallel, customizable to collect
+- compressed to store
+- quick to sync with a remote store
+  - sync to continue collecting
+  - sync to parse  
+- immutable collection
+
+## Concepts
+
+- objects
+  - saved by collection events
+- events
+  - collection
+  - registration (v2: registration for parsing)
+  - (v2) parsing
+- runs
+  - manual run vs automated run
+    - makes manual adding of urls easy but revertible
+  - has unique id
+  - generates events
+  - linked to a specific version of the code
+    - ideally commit hash + pip freeze
+- statuses
+  - determined by base status + runs integrated
+  - contains
+    - what urls need to be collected
+    - (v2) what collected objects need to be parsed
+  - sqlite file, constantly trimmed
+
+### Structure
+
+- objects
+  - 00, 01, ...
+- runs
+  - run-hash
+      - context.yaml
+        - commit-hash, pip-freeze, ...
+      - events.zip
+- statuses
+  - status-hash
+    - context.yaml
+      - parent-status, integrated
+    - db.sqlite.zip
+- current-run
+  - context.yaml
+  - events
+    - these to be compressed into ../runs
+  - status.sqlite
+
+- there is a 'TEST' status
+  - cannot be integrated whatever is based on it
+  - a test run can be made on it...
+
+
+
+when starting a run:
+  - check if current-run is empty
+    - if not, fail with 
+  - find latest status
+    - if it has not integrated all past runs, create a new status that has
+  - start collection (+ registration)
+  - either stops or breaks, all events and objects are saved to disk
+  - if properly stops, move and compress stuff
+    - based on one that was the starter, and current run id
 
 
 ## Pre v1.0 laundry list
 
-will probably need to separate a few things from it:
-- t2extractor
-  - unstructured json to tabular data automatically
-  - aswan.t2.extractor
-- scheduler
+- proxy auth test
+- session break tests
+- push/pull tests
 
-TODO
-- dvc integration
-- export to dataset template
-  - maybe part of the dataset
-- cleanup requirements
-- s3, scp for push/pull
-- add verified invalid output that is not parsing error
-- selective push / pull
-  - with possible nuking of remote archive
-  - cleaning local obj store (when envs blow up, ide dies)
+
+git tag --sort=committerdate
+
+
 - parsing/connection error confusion
   - also broken session thing
 - conn session cpu requirement
 - resource limits
-- transfering / ignoring cookies
-- lots of things with extractors
+- transferring / ignoring cookies
+
+
 - template projects
   - oddsportal
     - updating thingy, based on latest match in season
