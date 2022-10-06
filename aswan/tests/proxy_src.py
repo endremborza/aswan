@@ -3,14 +3,19 @@ from base64 import b64decode
 from flask import Flask, request
 from requests import get
 
-proxy_app = Flask(__name__)
 proxy_port = 8877
 proxy_pw = "my-pw"
 proxy_user = "my-user"
 
 
-@proxy_app.route("/", defaults={"path": ""}, methods=["GET", "POST", "CONNECT"])
-@proxy_app.route("/<path:path>", methods=["GET", "POST", "CONNECT"])
+def proxy_app_creator():  # pragma: no cover
+    app = Flask(__name__)
+    app.route("/", defaults={"path": ""}, methods=["GET", "POST", "CONNECT"])(
+        app.route("/<path:path>", methods=["GET", "POST", "CONNECT"])(proxy)
+    )
+    return app
+
+
 def proxy(path):  # pragma: no cover
     proper_host = request.headers.get("host")
     auth = request.headers.get("proxy-authorization")

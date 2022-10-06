@@ -11,13 +11,13 @@ from sqlalchemy.orm import Session
 
 from aswan import AswanDepot, Project
 from aswan.models import Base
-from aswan.tests.godel_src.app import godel_app, test_app_default_port
-from aswan.tests.proxy_src import proxy_app, proxy_port
+from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
+from aswan.tests.proxy_src import proxy_app_creator, proxy_port
 
 
 class AppRunner:
-    def __init__(self, app, port_no, verbose=True):
-        self.app = app
+    def __init__(self, app_creator, port_no, verbose=True):
+        self.app_creator = app_creator
         self._port_no = port_no
         self.app_address = f"http://localhost:{port_no}"
         self._process: Optional[Process] = None
@@ -43,12 +43,12 @@ class AppRunner:
         if not self._verbose:
             sys.stdout = open(os.devnull, "w")
             sys.stderr = open(os.devnull, "w")
-        self.app.run(port=self._port_no)
+        self.app_creator().run(port=self._port_no)
 
 
 @pytest.fixture(scope="session")
 def godel_test_app(request):
-    ar = AppRunner(godel_app, test_app_default_port, verbose=False)
+    ar = AppRunner(godel_app_creator, test_app_default_port, verbose=False)
     ar.start()
     yield
     ar.stop()
@@ -106,7 +106,7 @@ def test_project2():
 @pytest.fixture(scope="session")
 def test_proxy():
 
-    ar = AppRunner(proxy_app, proxy_port)
+    ar = AppRunner(proxy_app_creator, proxy_port)
     ar.start()
     yield
     ar.stop()

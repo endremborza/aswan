@@ -3,7 +3,7 @@ from aswan.connection_session import RequestSession
 from ..godel_src.handlers import AuthedProxy
 
 
-def test_proxy_formatting():
+def test_proxy_formatting(test_proxy):
     rs = RequestSession()
 
     ap = AuthedProxy()
