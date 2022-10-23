@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 
@@ -13,6 +14,10 @@ HEADERS = {
     " Gecko/20100101 Firefox/76.0",
 }
 
+
+DEFAULT_DEPOT_ROOT = Path(
+    os.environ.get("ASWAN_DEPOT_ROOT") or Path.home() / "aswan-depots"
+)
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 
 
@@ -30,6 +35,10 @@ class Statuses:
     TODO = "todo"
     PROCESSING = "processing"
     PROCESSED = "D"
+    CACHE_LOADED = "CL"
     PARSING_ERROR = "PE"
     CONNECTION_ERROR = "CE"
     SESSION_BROKEN = "SB"
+
+
+SUCCESS_STATUSES = [Statuses.PROCESSED, Statuses.CACHE_LOADED]
