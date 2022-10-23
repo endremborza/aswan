@@ -1,3 +1,4 @@
+import os
 from collections import Counter
 
 import pytest
@@ -53,7 +54,8 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
         if pcev.status == aswan.Statuses.CONNECTION_ERROR:
             assert pcev.url.split("/")[-1] == "Alan_Turing"
 
-    test_project.depot.push(env_auth_id)
+    if os.name != "nt":
+        test_project.depot.push(env_auth_id)
     test_project.commit_current_run()
     assert len(test_project.depot.get_all_run_ids()) == 1
     test_project.run()
@@ -83,4 +85,5 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
         else:
             assert v == 1
 
-    test_project.depot.pull(env_auth_id)
+    if os.name != "nt":
+        test_project.depot.pull(env_auth_id)

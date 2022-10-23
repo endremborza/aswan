@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from aswan.depot import AswanDepot
@@ -5,6 +6,8 @@ from aswan.models import RegEvent
 
 
 def test_push(env_auth_id: str, tmp_path: Path):
+    if os.name == "nt":  # pragma: no cover
+        return  # SSH needs to point to linux
 
     depot = AswanDepot("test", local_root=tmp_path / "depot1").setup(True)
     depot.current.integrate_events([RegEvent("url1", "H1")])

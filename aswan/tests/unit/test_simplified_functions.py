@@ -24,13 +24,17 @@ def test_project_run(env_auth_id: str, godel_test_app, tmp_path: Path):
 
     os.environ["ASWAN_DEPOT_ROOT"] = tmp_path.as_posix()
 
+    do_pushing = os.name != "nt"
+
     run_simple_project(
         {aswan.RequestHandler: [f"{test_app_default_address}/test_page/Axiom.html"]},
         name="simp-test",
-        remote=env_auth_id,
+        remote=env_auth_id if do_pushing else None,
         sync=True,
     )
 
+    if not do_pushing:  # pragma: no cover
+        return
     project = aswan.Project("simp-test", local_root=tmp_path / "other-thing")
 
     project.depot.pull(env_auth_id, True)
