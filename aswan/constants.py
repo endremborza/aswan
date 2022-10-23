@@ -15,6 +15,7 @@ HEADERS = {
 
 
 DEPOT_ROOT_ENV_VAR = "ASWAN_DEPOT_ROOT"
+DEFAULT_REMOTE_ENV_VAR = "ASWAN_REMOTE"
 DEFAULT_DEPOT_ROOT = Path.home() / "aswan-depots"
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 

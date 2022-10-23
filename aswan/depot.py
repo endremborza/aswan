@@ -19,7 +19,12 @@ import sqlalchemy as db
 import yaml
 from sqlalchemy.orm import Session, sessionmaker
 
-from .constants import DEFAULT_DEPOT_ROOT, DEPOT_ROOT_ENV_VAR, SUCCESS_STATUSES
+from .constants import (
+    DEFAULT_DEPOT_ROOT,
+    DEFAULT_REMOTE_ENV_VAR,
+    DEPOT_ROOT_ENV_VAR,
+    SUCCESS_STATUSES,
+)
 from .metadata_handling import get_next_batch, integrate_events, reset_surls
 from .models import Base, CollEvent, RegEvent, partial_read, partial_read_path
 
@@ -251,10 +256,10 @@ class AswanDepot:
                     urls.add(ev.url)
                 n += 1
 
-    def push(self, remote: str):
+    def push(self, remote: Union[str, bool] = True):
         self._conn_map(remote, self._push)
 
-    def pull(self, remote: str, complete=False):
+    def pull(self, remote: Union[str, bool], complete=False):
         self._conn_map(remote, self._pull, complete=complete)
 
     def purge(self):
@@ -303,7 +308,10 @@ class AswanDepot:
     def _run_events_zip(self, run_name, mode):
         return _zipfile(self.runs_path, run_name, EVENTS_ZIP, mode)
 
-    def _conn_map(self, remote_name, fun, **kwargs):
+    def _conn_map(self, remote, fun, **kwargs):
+        remote_name = (
+            remote if isinstance(remote, str) else os.environ[DEFAULT_REMOTE_ENV_VAR]
+        )
         with get_remote(remote_name) as conn:
             conn.run(f"mkdir -p {self.name}")
             with conn.cd(self.name):

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Union
 
 from . import url_handler as urh
 from .connection_session import ConnectionSession
@@ -22,7 +22,7 @@ def run_simple_project(
     urls_for_handlers: Dict[urh.ANY_HANDLER_T, Iterable[str]],
     name: Optional[str] = None,
     sync=False,
-    remote: Optional[str] = None,
+    remote: Optional[Union[str, bool]] = None,
 ):
     project = Project(
         name or Path(__file__).name.split(".")[0],

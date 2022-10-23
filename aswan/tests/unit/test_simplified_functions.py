@@ -4,6 +4,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 import aswan
+from aswan.constants import DEFAULT_REMOTE_ENV_VAR, DEPOT_ROOT_ENV_VAR
 from aswan.simplified_functions import get_json, get_soup, run_simple_project
 from aswan.tests.godel_src.app import test_app_default_address
 
@@ -22,14 +23,15 @@ def test_get_json(godel_test_app):
 
 def test_project_run(env_auth_id: str, godel_test_app, tmp_path: Path):
 
-    os.environ["ASWAN_DEPOT_ROOT"] = tmp_path.as_posix()
+    os.environ[DEPOT_ROOT_ENV_VAR] = tmp_path.as_posix()
+    os.environ[DEFAULT_REMOTE_ENV_VAR] = env_auth_id
 
     do_pushing = os.name != "nt"
 
     run_simple_project(
         {aswan.RequestHandler: [f"{test_app_default_address}/test_page/Axiom.html"]},
         name="simp-test",
-        remote=env_auth_id if do_pushing else None,
+        remote=do_pushing,
         sync=True,
     )
 
