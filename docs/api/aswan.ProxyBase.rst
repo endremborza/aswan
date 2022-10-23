@@ -12,8 +12,6 @@ ProxyBase
 
       ~ProxyBase.expiration_secs
       ~ProxyBase.max_at_once
-      ~ProxyBase.max_num_at_once
-      ~ProxyBase.name
       ~ProxyBase.port_no
       ~ProxyBase.prefix
 
@@ -21,23 +19,21 @@ ProxyBase
 
    .. autosummary::
 
-      ~ProxyBase.chrome_optins_from_host
+      ~ProxyBase.get_chrome_options
       ~ProxyBase.get_creds
-      ~ProxyBase.get_new_host
-      ~ProxyBase.rdict_from_host
+      ~ProxyBase.get_requests_dict
+      ~ProxyBase.set_new_host
 
    .. rubric:: Attributes Documentation
 
    .. autoattribute:: expiration_secs
    .. autoattribute:: max_at_once
-   .. autoattribute:: max_num_at_once
-   .. autoattribute:: name
    .. autoattribute:: port_no
    .. autoattribute:: prefix
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: chrome_optins_from_host
+   .. automethod:: get_chrome_options
    .. automethod:: get_creds
-   .. automethod:: get_new_host
-   .. automethod:: rdict_from_host
+   .. automethod:: get_requests_dict
+   .. automethod:: set_new_host

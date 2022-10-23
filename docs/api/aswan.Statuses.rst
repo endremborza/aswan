@@ -10,8 +10,8 @@ Statuses
 
    .. autosummary::
 
+      ~Statuses.CACHE_LOADED
       ~Statuses.CONNECTION_ERROR
-      ~Statuses.EXPIRED
       ~Statuses.PARSING_ERROR
       ~Statuses.PROCESSED
       ~Statuses.PROCESSING
@@ -20,8 +20,8 @@ Statuses
 
    .. rubric:: Attributes Documentation
 
+   .. autoattribute:: CACHE_LOADED
    .. autoattribute:: CONNECTION_ERROR
-   .. autoattribute:: EXPIRED
    .. autoattribute:: PARSING_ERROR
    .. autoattribute:: PROCESSED
    .. autoattribute:: PROCESSING
