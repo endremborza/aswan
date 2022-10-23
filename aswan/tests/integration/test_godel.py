@@ -6,10 +6,7 @@ import pytest
 import aswan
 import aswan.tests.godel_src.handlers as ghandlers
 
-# import pytest
 
-
-# @pytest.mark.parametrize("dist_api", [("sync"), ("mp")])
 def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Project):
     """
     missing to test:
