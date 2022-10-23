@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Dict, Iterable, Optional, Union
 
 from . import url_handler as urh
