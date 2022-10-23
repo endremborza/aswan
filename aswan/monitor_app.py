@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 from time import time
 
 from sqlalchemy import func
@@ -125,9 +126,11 @@ class MonitorApp:
 
 
 def run_monitor_app(
-    depot: AswanDepot, port_no=6969, refresh_interval_secs=30, silent=True, debug=False
+    depot_root: Path, port_no=6969, refresh_interval_secs=30, silent=True, debug=False
 ):  # pragma: no cover
     if silent:
         sys.stdout = open(os.devnull, "w")
         sys.stderr = open(os.devnull, "w")
-    MonitorApp(depot, refresh_interval_secs).app.run_server(port=port_no, debug=debug)
+    MonitorApp(
+        AswanDepot(depot_root.name, depot_root.parent), refresh_interval_secs
+    ).app.run_server(port=port_no, debug=debug)

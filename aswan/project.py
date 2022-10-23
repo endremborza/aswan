@@ -115,7 +115,7 @@ class Project:
 
         self._monitor_app_process = Process(
             target=run_monitor_app,
-            kwargs={"port_no": port_no, "depot": self.depot},
+            kwargs={"port_no": port_no, "depot_root": self.depot.root},
         )
         self._monitor_app_process.start()
         logger.info(f" monitor app at: http://localhost:{port_no}")
