@@ -16,10 +16,9 @@ url_root_rex = re.compile(r"(.*?://[a-zA-Z-\.]*)")
 
 
 def is_subclass(kls, base):
-    # TODO maybe someone simply uses a request handler?
     try:
-        return (base in kls.mro()) and (kls.__module__ != base.__module__)
-    except AttributeError:
+        return base in kls.mro()  # and (kls.__module__ != base.__module__)
+    except (AttributeError, TypeError):
         return False
 
 
