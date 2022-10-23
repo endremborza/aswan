@@ -5,7 +5,7 @@ from typing import Iterable, List, Union
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import and_
 
-from .constants import Statuses
+from .constants import SUCCESS_STATUSES, Statuses
 from .models import CollEvent, RegEvent, SourceUrl
 
 
@@ -28,7 +28,7 @@ def update_sources(session: Session, handler: str, urls: Iterable[str], status):
         SourceUrl.handler == handler,
         SourceUrl.url.in_(urls),
     )
-    if status == Statuses.PROCESSED:
+    if status in SUCCESS_STATUSES:
         base_q.delete()
     else:
         base_q.update({"current_status": status})

@@ -18,14 +18,13 @@ import sqlalchemy as db
 import yaml
 from sqlalchemy.orm import Session, sessionmaker
 
-from .constants import Statuses
+from .constants import DEFAULT_DEPOT_ROOT, SUCCESS_STATUSES
 from .metadata_handling import get_next_batch, integrate_events, reset_surls
 from .models import Base, CollEvent, RegEvent, partial_read, partial_read_path
 
 if TYPE_CHECKING:
     from .connection_session import UrlHandlerResult  # pragma: no cover
 
-DEFAULT_LOCAL_SPACE = Path.home() / "aswan-depots"
 DB_KIND = "sqlite"  # :///
 
 COMPRESS = zipfile.ZIP_DEFLATED
@@ -143,7 +142,7 @@ class Current:
 
 class AswanDepot:
     def __init__(self, name: str, local_root: Optional[Path]) -> None:
-        self.root = Path(local_root or DEFAULT_LOCAL_SPACE) / name
+        self.root = Path(local_root or DEFAULT_DEPOT_ROOT) / name
         self.object_store_path = self.root / "object-store"
         self.statuses_path = self.root / "statuses"
         self.runs_path = self.root / "runs"
@@ -219,7 +218,7 @@ class AswanDepot:
         def _filter(ev: CollEvent):
             return (
                 ((handler is None) or (ev.handler == handler))
-                and ((not only_successful) or (ev.status == Statuses.PROCESSED))
+                and ((not only_successful) or (ev.status in SUCCESS_STATUSES))
                 and ((not only_latest) or (ev.extend().url not in urls))
             )
 
