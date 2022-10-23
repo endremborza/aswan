@@ -31,7 +31,6 @@ class GetMain(aswan.RequestSoupHandler):
     proxy_cls = AuthedProxy
     url_root = test_app_default_address
     test_urls = ["/test_page/Alonzo_Church.html", "/test_page/Nonexistent"]
-    wait_on_initiation_fail = 0
     _vtries = 0
 
     def parse(self, soup: BeautifulSoup):
@@ -68,6 +67,7 @@ class LinkRoot(aswan.RequestSoupHandler):
     url_root = test_app_default_address
     test_urls = ["/test_page/godel_wiki.html"]
     _init_failer = True
+    wait_on_initiation_fail = 0
 
     def parse(self, soup: BeautifulSoup):
         for a in soup.find_all("a"):
