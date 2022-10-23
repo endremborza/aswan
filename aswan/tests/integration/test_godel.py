@@ -10,8 +10,6 @@ import aswan.tests.godel_src.handlers as ghandlers
 def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Project):
     """
     missing to test:
-    - proxies
-    - url params
     - cookies
     """
 
