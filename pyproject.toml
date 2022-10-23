@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-remote = ["zimmauth","fabric"]
+remote = ["zimmauth","fabric","toml"]
 monitor = ["pandas","dash","dash-bootstrap-components"]
 test = ["branthebuilder","zimmauth[test]"]
 doc = ["branthebuilder[doc]"]
