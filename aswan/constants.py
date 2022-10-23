@@ -1,4 +1,3 @@
-import os
 import re
 from pathlib import Path
 
@@ -15,9 +14,8 @@ HEADERS = {
 }
 
 
-DEFAULT_DEPOT_ROOT = Path(
-    os.environ.get("ASWAN_DEPOT_ROOT") or Path.home() / "aswan-depots"
-)
+DEPOT_ROOT_ENV_VAR = "ASWAN_DEPOT_ROOT"
+DEFAULT_DEPOT_ROOT = Path.home() / "aswan-depots"
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 
 

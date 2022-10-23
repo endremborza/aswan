@@ -9,7 +9,7 @@ import aswan.tests.godel_src.handlers as ghandlers
 
 
 # @pytest.mark.parametrize("dist_api", [("sync"), ("mp")])
-def test_godel(godel_test_app, test_proxy, test_project: aswan.Project):
+def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Project):
     """
     missing to test:
     - proxies
@@ -18,12 +18,14 @@ def test_godel(godel_test_app, test_proxy, test_project: aswan.Project):
     """
 
     test_project.register_module(ghandlers)
+    test_project.start_monitor_process()
     test_project.run(test_run=True, keep_running=False, force_sync=True)
 
     assert (
         next(test_project.handler_events(ghandlers.LinkRoot)).status
         == aswan.Statuses.PROCESSED
     )
+    test_project.stop_monitor_process()
 
     def _get_found():
         return [
@@ -51,7 +53,7 @@ def test_godel(godel_test_app, test_proxy, test_project: aswan.Project):
         if pcev.status == aswan.Statuses.CONNECTION_ERROR:
             assert pcev.url.split("/")[-1] == "Alan_Turing"
 
-    # test_project.push()
+    test_project.depot.push(env_auth_id)
     test_project.commit_current_run()
     assert len(test_project.depot.get_all_run_ids()) == 1
     test_project.run()
@@ -81,7 +83,4 @@ def test_godel(godel_test_app, test_proxy, test_project: aswan.Project):
         else:
             assert v == 1
 
-    # test_project.pull(force=True)
-
-    # test_project.start_monitor_process()
-    # test_project.stop_monitor_process()
+    test_project.depot.pull(env_auth_id)

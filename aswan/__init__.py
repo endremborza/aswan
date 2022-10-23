@@ -7,7 +7,7 @@ from .exceptions import BrokenSessionError, ConnectionError
 from .object_store import ObjectStore
 from .project import Project
 from .security import ProxyAuth, ProxyBase
-from .simplified_functions import get_json, get_soup
+from .simplified_functions import get_json, get_soup, run_simple_project
 from .url_handler import (
     BrowserHandler,
     BrowserJsonHandler,

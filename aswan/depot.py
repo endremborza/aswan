@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import zipfile
@@ -18,17 +19,22 @@ import sqlalchemy as db
 import yaml
 from sqlalchemy.orm import Session, sessionmaker
 
-from .constants import DEFAULT_DEPOT_ROOT, SUCCESS_STATUSES
+from .constants import DEFAULT_DEPOT_ROOT, DEPOT_ROOT_ENV_VAR, SUCCESS_STATUSES
 from .metadata_handling import get_next_batch, integrate_events, reset_surls
 from .models import Base, CollEvent, RegEvent, partial_read, partial_read_path
 
-if TYPE_CHECKING:
-    from .connection_session import UrlHandlerResult  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
+    from fabric import Connection
+
+    from .connection_session import UrlHandlerResult
+
+HEX_ENV = "ASWAN_AUTH_HEX"
+PW_ENV = "ASWAN_AUTH_PASS"
 
 DB_KIND = "sqlite"  # :///
-
 COMPRESS = zipfile.ZIP_DEFLATED
 STATUS_DB_ZIP = f"db.{DB_KIND}.zip"
+EVENTS_ZIP = "events.zip"
 CONTEXT_YAML = "context.yaml"
 
 _RUN_SPLIT = "-"
@@ -100,6 +106,7 @@ class Current:
     def setup(self):
         self.events.mkdir(parents=True)
         Base.metadata.create_all(self.engine)
+        return self
 
     def purge(self):
         if self.root.exists():
@@ -142,24 +149,31 @@ class Current:
 
 class AswanDepot:
     def __init__(self, name: str, local_root: Optional[Path]) -> None:
-        self.root = Path(local_root or DEFAULT_DEPOT_ROOT) / name
+        self.name = name
+        self.root = (
+            Path(local_root or os.environ.get(DEPOT_ROOT_ENV_VAR) or DEFAULT_DEPOT_ROOT)
+            / name
+        )
         self.object_store_path = self.root / "object-store"
         self.statuses_path = self.root / "statuses"
         self.runs_path = self.root / "runs"
         self.current = Current(self.root / "current-run")
+        self._init_dirs = [self.runs_path, self.statuses_path, self.object_store_path]
 
-    def setup(self):
-        for p in [self.runs_path, self.statuses_path, self.object_store_path]:
+    def setup(self, init=False):
+        for p in self._init_dirs:
             p.mkdir(exist_ok=True, parents=True)
+        if init:
+            self.init_w_complete()
+        return self
+
+    def init_w_complete(self):
+        self.set_as_current(self.get_complete_status())
+        return self
 
     def get_complete_status(self) -> Status:
         # either an existing, a new or a blank status
-        by_name: Dict[str, Status] = {None: Status()}
-        children: Dict[str, List[Status]] = defaultdict(list)
-        for status in map(Status.read, self.statuses_path.iterdir()):
-            by_name[status.name] = status
-            children[status.parent].append(status)
-        leaf = _Chain(children, by_name).get_furthest_leaf(None)
+        leaf = self._get_leaf()
         missing_runs = self.get_all_run_ids() - set(leaf.integrated_runs)
         if missing_runs:
             return self.integrate(leaf, missing_runs)
@@ -179,9 +193,11 @@ class AswanDepot:
     def integrate(self, status: Status, runs: Iterable[str]):
         out = Status(status.name, list(runs))
         with TemporaryDirectory() as tmp_dir:
-            tmp_curr = Current(tmp_dir)
+            tmp_curr = Current(Path(tmp_dir)).setup()
+            with self._status_db_zip(status.name, "r") as zfp:
+                zfp.extract(self.current.db_path.name, path=tmp_dir)
             for run_name in runs:
-                tmp_curr.integrate_events(self._get_run_events(run_name))
+                tmp_curr.integrate_events(self._get_run_events(run_name, True))
             self._save_status_from_current(tmp_curr, out)
         return out
 
@@ -235,9 +251,23 @@ class AswanDepot:
                     urls.add(ev.url)
                 n += 1
 
+    def push(self, remote: str):
+        self._conn_map(remote, self._push)
+
+    def pull(self, remote: str, complete=False):
+        self._conn_map(remote, self._pull, complete=complete)
+
     def purge(self):
         if self.root.exists():
             rmtree(self.root)
+
+    def _get_leaf(self):
+        by_name: Dict[str, Status] = {None: Status()}
+        children: Dict[str, List[Status]] = defaultdict(list)
+        for status in map(Status.read, self.statuses_path.iterdir()):
+            by_name[status.name] = status
+            children[status.parent].append(status)
+        return _Chain(children, by_name).get_furthest_leaf(None)
 
     def _iter_runs(self) -> Iterable[Iterable[CollEvent]]:
         runs = []
@@ -247,12 +277,14 @@ class AswanDepot:
             _, run_name = heappop(runs)
             yield self._get_run_events(run_name)
 
-    def _get_run_events(self, run_name):
+    def _get_run_events(self, run_name, extend=False):
         with self._run_events_zip(run_name, "r") as zfp:
             for event in zfp.filelist:
-                yield partial_read(
-                    event.filename, partial(self._read_event_blob, run_name, event)
-                )
+                _fun = partial(self._read_event_blob, run_name, event)
+                _ev = partial_read(event.filename, _fun)
+                if extend:
+                    _ev.extend()
+                yield _ev
 
     def _read_event_blob(self, run_name, event_name):
         with self._run_events_zip(run_name, "r") as zfp:
@@ -269,7 +301,68 @@ class AswanDepot:
         return _zipfile(self.statuses_path, status_name, STATUS_DB_ZIP, mode)
 
     def _run_events_zip(self, run_name, mode):
-        return _zipfile(self.runs_path, run_name, "events.zip", mode)
+        return _zipfile(self.runs_path, run_name, EVENTS_ZIP, mode)
+
+    def _conn_map(self, remote_name, fun, **kwargs):
+        with get_remote(remote_name) as conn:
+            conn.run(f"mkdir -p {self.name}")
+            with conn.cd(self.name):
+                fun(conn, **kwargs)
+
+    def _push(self, conn: "Connection"):
+        for dir_path in self._init_dirs:
+            for subdir in dir_path.iterdir():
+                rel_path = subdir.relative_to(self.root)
+                conn.run(f"mkdir -p {rel_path.as_posix()}")
+                for elem in subdir.iterdir():
+                    self._conn_move(conn, elem, True)
+
+    def _pull(self, conn: "Connection", complete: bool):
+        _ls = partial(self._remote_ls, conn)
+        _mv = partial(self._conn_move, conn)
+        remote_statuses = list(_ls(self.statuses_path))
+        remote_runs = set(_ls(self.runs_path))
+        for rem_status in remote_statuses:
+            _mv(self.statuses_path / rem_status / CONTEXT_YAML)
+        leaf = self._get_leaf()
+        if leaf.name in remote_statuses:
+            _mv(self.statuses_path / leaf.name / STATUS_DB_ZIP)
+        for run in remote_runs - set(leaf.integrated_runs):
+            _mv(self.runs_path / run / EVENTS_ZIP)
+        if complete:
+            # TODO: more sophisticated pull with parts of ostore
+            for status in remote_statuses:
+                _mv(self.statuses_path / status / STATUS_DB_ZIP)
+            for run in remote_runs:
+                _mv(self.runs_path / run / EVENTS_ZIP)
+            for obj_dir in _ls(self.object_store_path, False):
+                for obj_file in _ls(self.object_store_path / obj_dir):
+                    _mv(self.object_store_path / obj_dir / obj_file)
+
+    def _remote_ls(self, conn, dir_path: Path, only_remote=True) -> List[str]:
+        import invoke
+
+        local_posix = dir_path.relative_to(self.root).as_posix()
+        try:
+            _ls: List[str] = conn.run(f"ls {local_posix}").stdout.split()
+        except invoke.UnexpectedExit:
+            _ls = []
+        for remote_name in _ls:
+            local_dir = dir_path / remote_name
+            if only_remote and local_dir.exists():
+                continue
+            yield remote_name
+
+    def _conn_move(self, conn: "Connection", local_path: Path, put=False):
+        import invoke
+
+        rem_abs_path = f"{conn.cwd}/{local_path.relative_to(self.root)}"
+        if not put:
+            return conn.get(rem_abs_path, local_path.as_posix())
+        try:
+            conn.run(f"test -f {rem_abs_path}")
+        except invoke.UnexpectedExit:
+            conn.put(local_path.as_posix(), rem_abs_path)
 
 
 def get_sorted_coll_events(event_iterator: Iterable) -> Iterable[CollEvent]:
@@ -280,6 +373,12 @@ def get_sorted_coll_events(event_iterator: Iterable) -> Iterable[CollEvent]:
             heappush(coll_evs, ev)
     while coll_evs:
         yield heappop(coll_evs)
+
+
+def get_remote(remote_name: str):
+    from zimmauth import ZimmAuth
+
+    return ZimmAuth.from_env(HEX_ENV, PW_ENV).get_fabric_connection(remote_name)
 
 
 @dataclass

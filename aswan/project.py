@@ -5,13 +5,13 @@ from typing import Dict, Iterable, List, Optional, Type
 from atqo import DEFAULT_DIST_API_KEY, DEFAULT_MULTI_API, Scheduler
 from structlog import get_logger
 
+from . import url_handler as urh
 from .connection_session import HandlingTask, get_actor_dict
 from .constants import Statuses
 from .depot import AswanDepot, Status
 from .models import CollEvent, RegEvent, SourceUrl
 from .object_store import ObjectStore
 from .resources import REnum
-from .url_handler import UrlHandlerBase
 from .utils import is_subclass, run_and_log_functions
 
 logger = get_logger()
@@ -22,26 +22,28 @@ class Project:
         self,
         name: str,
         local_root: Optional[str] = None,
-        min_queue_size=20,
-        batch_size=40,
+        min_queue_size: Optional[int] = None,
+        batch_size: Optional[int] = None,
         distributed_api=DEFAULT_MULTI_API,
         debug=False,
     ):
 
         self.depot = AswanDepot(name, local_root)
         self.object_store = ObjectStore(self.depot.object_store_path)
-        self.min_queue_size = min_queue_size
-        self.batch_size = batch_size
+        self.batch_size = batch_size or min(cpu_count() * 4, 60)
+        self.min_queue_size = min_queue_size or (self.batch_size // 2)
         self.distributed_api = distributed_api
         self.debug = debug
 
-        self._handler_dic: Dict[str, "UrlHandlerBase"] = {}
+        self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
         self._scheduler: Optional[Scheduler] = None
         self._monitor_app_process: Optional[Process] = None
 
         self._ran_once = False
         self._keep_running = True
         self._is_test = False
+
+        self.register_module(urh)
 
     def run(
         self,
@@ -97,14 +99,14 @@ class Project:
         prep = [partial(self.depot.current.reset_surls, statuses)]
         self._run(force_sync, keep_running, prep)
 
-    def register_handler(self, handler: Type["UrlHandlerBase"]):
+    def register_handler(self, handler: Type[urh.ANY_HANDLER_T]):
         # called for .name to work later and proxy to init
         self._handler_dic[handler.__name__] = handler()
         return handler
 
     def register_module(self, mod):
         for e in mod.__dict__.values():
-            if is_subclass(e, UrlHandlerBase):
+            if is_subclass(e, urh.UrlHandlerBase):
                 self.register_handler(e)
 
     def start_monitor_process(self, port_no=6969):
@@ -124,14 +126,15 @@ class Project:
 
     def handler_events(
         self,
-        handler: Type["UrlHandlerBase"],
+        handler: Type[urh.ANY_HANDLER_T] = None,
         only_successful: bool = True,
         only_latest: bool = True,
         limit=float("inf"),
         past_run_count=0,
     ) -> Iterable["ParsedCollectionEvent"]:
+        name = handler.__name__ if handler is not None else None
         for cev in self.depot.get_handler_events(
-            handler.__name__, only_successful, only_latest, limit, past_run_count
+            name, only_successful, only_latest, limit, past_run_count
         ):
             yield ParsedCollectionEvent(cev.extend(), self)
 
@@ -182,8 +185,8 @@ class Project:
 
     def _initiate_status(
         self,
-        urls_to_register: Optional[Dict[Type[UrlHandlerBase], Iterable[str]]],
-        urls_to_overwrite: Optional[Dict[Type[UrlHandlerBase], Iterable[str]]],
+        urls_to_register: Optional[Dict[Type[urh.ANY_HANDLER_T], Iterable[str]]],
+        urls_to_overwrite: Optional[Dict[Type[urh.ANY_HANDLER_T], Iterable[str]]],
     ):
         reg_events = []
         for url_dic, ovw in [(urls_to_register, False), (urls_to_overwrite, True)]:
@@ -234,6 +237,6 @@ class ParsedCollectionEvent:
         return f"{self.status}: {self.handler_name} - {self.url} ({self._time})"
 
 
-def _get_event_bunch(handler: Type[UrlHandlerBase], urls, overwrite=False):
+def _get_event_bunch(handler: Type[urh.ANY_HANDLER_T], urls, overwrite=False):
     part = partial(RegEvent, handler=handler.__name__, overwrite=overwrite)
     return map(part, map(handler.extend_link, urls))

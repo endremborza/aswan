@@ -17,8 +17,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+remote = ["zimmauth","fabric"]
 monitor = ["pandas","dash","dash-bootstrap-components"]
-test = ["branthebuilder"]
+test = ["branthebuilder","zimmauth[test]"]
 doc = ["branthebuilder[doc]"]
 
 [project.urls]
@@ -30,3 +31,6 @@ build-backend = "flit_core.buildapi"
 
 [tool.branb]
 line-length = 88
+
+[tool.pytest.ini_options]
+addopts = "-s"

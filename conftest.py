@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import time
 from multiprocessing import Process
@@ -8,11 +9,16 @@ import pytest
 import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from zimmauth.test_core import TEST_USER, Server, private_key_path, server
+from zimmauth import ZimmAuth
 
 from aswan import AswanDepot, Project
 from aswan.models import Base
 from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
 from aswan.tests.proxy_src import proxy_app_creator, proxy_port
+from aswan.depot import HEX_ENV, PW_ENV
+
+_CNAME = "ssh-conn"
 
 
 class AppRunner:
@@ -110,3 +116,25 @@ def test_proxy():
     ar.start()
     yield
     ar.stop()
+
+
+@pytest.fixture
+def env_auth_id(private_key_path: Path, tmp_path: Path, server):
+    rem_path = tmp_path / "remote"
+    rem_path.mkdir()
+    test_dic = {
+        "rsa-keys": {"rsa-key-name": private_key_path.read_text()},
+        "ssh": {
+            "ssh-name-1": {
+                "host": Server.host,
+                "port": server.port,
+                "user": TEST_USER,
+                "rsa_key": "rsa-key-name",
+            }
+        },
+        _CNAME: {"connection": "ssh-name-1", "path": rem_path.as_posix()},
+    }
+    pw = "AWPW7"
+    os.environ[PW_ENV] = pw
+    os.environ[HEX_ENV] = ZimmAuth.dumps_dict(test_dic, pw)
+    return _CNAME
