@@ -16,14 +16,12 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
     """
 
     test_project.register_module(ghandlers)
-    test_project.start_monitor_process()
     test_project.run(test_run=True, keep_running=False, force_sync=True)
 
     assert (
         next(test_project.handler_events(ghandlers.LinkRoot)).status
         == aswan.Statuses.PROCESSED
     )
-    test_project.stop_monitor_process()
 
     def _get_found():
         return [
@@ -84,3 +82,5 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
 
     if os.name != "nt":
         test_project.depot.pull(env_auth_id)
+        test_project.start_monitor_process()
+        test_project.stop_monitor_process()
