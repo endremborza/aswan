@@ -46,14 +46,26 @@ class HandlingTask:
     def get_scheduler_task(self) -> SchedulerTask:
         caps = self.handler.proxy.caps
         if isinstance(self.handler, BrowserHandler):
-            if not self.handler.headless:
+            if not self.handler.headless:  # pragma: no cover
                 caps.append(Caps.display)
-            if self.handler.eager:
-                caps.append(Caps.eager_browser)
+            if self.handler.eager:  # pragma: no cover
+                caps.append(Caps.eager_browser)  # how?
             else:
                 caps.append(Caps.normal_browser)
 
         return SchedulerTask(argument=self, requirements=caps)
+
+    def wrap_to_uhr(self, out, status):
+        return UrlHandlerResult(
+            event=CollEvent(
+                handler=self.handler_name,
+                url=self.url,
+                timestamp=int(time.time()),
+                output_file=self.object_store.dump(out) if out is not None else "",
+                status=status,
+            ),
+            registered_links=self.handler.pop_registered_links(),
+        )
 
     @property
     def handler_name(self):
@@ -94,8 +106,7 @@ class ConnectionSession(ActorBase):
 
         cached_resp = task.handler.load_cache(task.url)
         if cached_resp is not None:
-            # FIXME
-            return cached_resp
+            return task.wrap_to_uhr(cached_resp, Statuses.CACHE_LOADED)
 
         task.handler.set_url(task.url)
         time.sleep(task.handler.get_sleep_time())
@@ -143,24 +154,13 @@ class ConnectionSession(ActorBase):
         try:
             out = self.get_parsed_response(task.url, task.handler)
             status = Statuses.PROCESSED
-            outfile = task.object_store.dump(out) if out is not None else ""
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
-            outfile = task.object_store.dump(out)
             _info = {**out, "proxy": self._proxy.host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
 
-        return UrlHandlerResult(
-            event=CollEvent(
-                handler=task.handler_name,
-                url=task.url,
-                timestamp=int(time.time()),
-                output_file=outfile,
-                status=status,
-            ),
-            registered_links=task.handler.pop_registered_links(),
-        )
+        return task.wrap_to_uhr(out, status)
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
@@ -180,9 +180,10 @@ class ConnectionSession(ActorBase):
 
 
 class BrowserSession:
-    def __init__(self, headless: bool, eager: bool):
+    def __init__(self, headless: bool, eager: bool, show_images: bool = False):
         self._headless = headless
         self._eager = eager
+        self._show_images = show_images
         self.driver: Optional[Chrome] = None
 
     def start(self, proxy: ProxyBase):
@@ -194,8 +195,12 @@ class BrowserSession:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--headless")
-        if self._eager:
+        if self._eager:  # pragma: no cover
             chrome_options.page_load_strategy = "eager"
+        if not self._show_images:
+            prefs = {"profile.managed_default_content_settings.images": 2}
+            chrome_options.add_experimental_option("prefs", prefs)
+
         logger.info(f"launching browser: {chrome_options.arguments}")
         self.driver = Chrome(options=chrome_options)
         logger.info("browser running")
@@ -203,7 +208,7 @@ class BrowserSession:
     def stop(self):
         try:
             self.driver.close()
-        except WebDriverException:
+        except WebDriverException:  # pragma: no cover
             logger.warning("could not stop browser")
 
     def get_response_content(self, handler: ANY_HANDLER_T, url: str):
