@@ -20,13 +20,11 @@ def get_json(url: str, params: Optional[dict] = None):
 
 def run_simple_project(
     urls_for_handlers: Dict[urh.ANY_HANDLER_T, Iterable[str]],
-    name: Optional[str] = None,
+    name: str,
     sync=False,
     remote: Optional[Union[str, bool]] = None,
 ):
-    project = Project(
-        name or Path(__file__).name.split(".")[0],
-    )
+    project = Project(name)
 
     for handler, urls in urls_for_handlers.items():
         project.register_handler(handler)
