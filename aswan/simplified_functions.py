@@ -1,7 +1,9 @@
-from typing import Optional
+from pathlib import Path
+from typing import Dict, Iterable, Optional
 
+from . import url_handler as urh
 from .connection_session import ConnectionSession
-from .url_handler import RequestJsonHandler
+from .project import Project
 
 
 def get_soup(url: str, params: Optional[dict] = None, browser=False, headless=True):
@@ -12,4 +14,30 @@ def get_soup(url: str, params: Optional[dict] = None, browser=False, headless=Tr
 
 
 def get_json(url: str, params: Optional[dict] = None):
-    return ConnectionSession().get_parsed_response(url, RequestJsonHandler(), params)
+    cs = ConnectionSession()
+    return cs.get_parsed_response(url, urh.RequestJsonHandler(), params)
+
+
+def run_simple_project(
+    urls_for_handlers: Dict[urh.ANY_HANDLER_T, Iterable[str]],
+    name: Optional[str] = None,
+    sync=False,
+    remote: Optional[str] = None,
+):
+    project = Project(
+        name or Path(__file__).name.split(".")[0],
+    )
+
+    for handler, urls in urls_for_handlers.items():
+        project.register_handler(handler)
+        assert not isinstance(urls, str), "set an iterable for urls, not str"
+
+    if remote:
+        project.depot.setup()
+        project.depot.pull(remote)
+
+    project.run(urls_to_overwrite=urls_for_handlers, force_sync=sync)
+    project.commit_current_run()
+
+    if remote:
+        project.depot.push(remote)

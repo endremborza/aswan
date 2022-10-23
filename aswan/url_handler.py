@@ -46,6 +46,7 @@ class UrlHandlerBase:
         self,
         links: Iterable[str],
         handler_cls: Optional[Type["ANY_HANDLER_T"]] = None,
+        overwrite: bool = False,
     ):
         if handler_cls is None:
             handler_cls = type(self)
@@ -53,6 +54,7 @@ class UrlHandlerBase:
             RegEvent(
                 url=self.extend_link(link),
                 handler=handler_cls.__name__,
+                overwrite=overwrite,
             )
             for link in links
         ]
@@ -69,10 +71,6 @@ class UrlHandlerBase:
     @property
     def name(self):
         return type(self).__name__
-
-    @staticmethod
-    def get_restart_sleep_time():
-        return random.uniform(0.2, 1.2)
 
     @staticmethod
     def get_retry_sleep_time():
