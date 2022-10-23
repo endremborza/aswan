@@ -10,7 +10,6 @@ dependencies = [
     "beautifulsoup4",
     "html5lib",
     "selenium",
-    "dash",
     "sqlalchemy",
     "structlog",
     "pyyaml",

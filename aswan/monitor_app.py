@@ -2,10 +2,6 @@ import os
 import sys
 from time import time
 
-import dash_bootstrap_components as dbc
-import pandas as pd
-from dash import Dash, dash_table, dcc, html
-from dash.dependencies import Input, Output
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
@@ -14,23 +10,24 @@ from .depot import AswanDepot
 from .models import CollEvent, SourceUrl
 from .object_store import ObjectStore
 
-external_stylesheets = [
-    "https://codepen.io/chriddyp/pen/bWLwgP.css",
-    dbc.themes.BOOTSTRAP,
-]
-
-
-def update_status(store_data: dict):
-    surl_rates = store_data.get("source_url_rate", [])
-    df = pd.DataFrame(surl_rates)
-    return dash_table.DataTable(
-        df.to_dict("records"), [{"name": i, "id": i} for i in df.columns]
-    )
-
 
 class MonitorApp:
     def __init__(self, depot: AswanDepot, refresh_interval_secs=30, cev_limit=100):
-        self.app = Dash(__name__, external_stylesheets=external_stylesheets)
+        import dash_bootstrap_components as dbc
+        import pandas as pd
+        from dash import Dash, dash_table, dcc, html
+        from dash.dependencies import Input, Output
+
+        self.DF = pd.DataFrame
+        self.DashTable = dash_table.DataTable
+        self.html = html
+        self.app = Dash(
+            __name__,
+            external_stylesheets=[
+                "https://codepen.io/chriddyp/pen/bWLwgP.css",
+                dbc.themes.BOOTSTRAP,
+            ],
+        )
         self.depot = depot
         self.cev_limit = cev_limit
         elems = [
@@ -59,7 +56,7 @@ class MonitorApp:
         self.app.callback(
             Output("live-update-status", "children"),
             [Input("data-store", "data")],
-        )(update_status)
+        )(self.update_status)
 
         @self.app.server.route("/object_store/<file_id>")
         def get_obj(file_id):  # pragma: no cover
@@ -79,7 +76,7 @@ class MonitorApp:
         )
         session.close()
         surls = (
-            pd.DataFrame([*source_urls_grouped], columns=["status", "handler", "count"])
+            self.DF([*source_urls_grouped], columns=["status", "handler", "count"])
             .pivot_table(columns="status", index="handler", values="count")
             .reset_index()
             .fillna(0)
@@ -91,7 +88,7 @@ class MonitorApp:
         coll_evs = store_data.get("coll_events", [])
         if not coll_evs:
             return []
-        cev_df = pd.DataFrame(coll_evs)
+        cev_df = self.DF(coll_evs)
         vc = cev_df["status"].value_counts().to_dict()
         upto_now = (time() - cev_df["timestamp"].min()) / 60
         in_hour = vc.get(Statuses.PROCESSED, 0) * 60 / upto_now
@@ -101,13 +98,30 @@ class MonitorApp:
             f"estimate for 1 hour: {in_hour:.2f} - ({24 * in_hour:.2f} / day)",
             f"all todos in {todo_in_hours:.2f} hours",
         ]
-        return html.Div(
+        return self.html.Div(
             [
-                html.H3(f"Results in last {upto_now:.2f} minutes"),
-                html.Span([*map(html.P, info_lines)]),
-                html.Table([*map(cev_to_tr, coll_evs)]),
+                self.html.H3(f"Results in last {upto_now:.2f} minutes"),
+                self.html.Span([*map(self.html.P, info_lines)]),
+                self.html.Table([*map(self.cev_to_tr, coll_evs)]),
             ]
         )
+
+    def update_status(self, store_data: dict):
+        surl_rates = store_data.get("source_url_rate", [])
+        df = self.DF(surl_rates)
+        return self.DashTable(
+            df.to_dict("records"), [{"name": i, "id": i} for i in df.columns]
+        )
+
+    def cev_to_tr(self, cev_d: dict):
+        cev = CollEvent(**cev_d)
+        tds = [cev.iso, cev.handler, cev.status, self.html.A(cev.url, href=cev.url)]
+        link = (
+            self.html.A("file", href=f"/object_store/{cev.output_file}")
+            if cev.output_file
+            else None
+        )
+        return self.html.Tr([*map(self.html.Td, [*tds, link])])
 
 
 def run_monitor_app(
@@ -117,14 +131,3 @@ def run_monitor_app(
         sys.stdout = open(os.devnull, "w")
         sys.stderr = open(os.devnull, "w")
     MonitorApp(depot, refresh_interval_secs).app.run_server(port=port_no, debug=debug)
-
-
-def cev_to_tr(cev_d: dict):
-    cev = CollEvent(**cev_d)
-    tds = [cev.iso, cev.handler, cev.status, html.A(cev.url, href=cev.url)]
-    link = (
-        html.A("file", href=f"/object_store/{cev.output_file}")
-        if cev.output_file
-        else None
-    )
-    return html.Tr([*map(html.Td, [*tds, link])])

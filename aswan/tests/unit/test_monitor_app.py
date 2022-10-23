@@ -1,7 +1,7 @@
 import json
 
 from aswan import AswanDepot
-from aswan.monitor_app import MonitorApp, update_status
+from aswan.monitor_app import MonitorApp
 
 from .test_metadata_handling import get_cev
 
@@ -17,4 +17,4 @@ def test_monitor_app(test_depot: AswanDepot):
     assert json.dumps(store)
     elems = mapp.update_metrics(store)
     assert elems
-    update_status(store)
+    mapp.update_status(store)
