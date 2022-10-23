@@ -13,7 +13,7 @@ dependencies = [
     "sqlalchemy",
     "structlog",
     "pyyaml",
-    "atqo>=0.2.0",
+    "atqo @ git+https://github.com/endremborza/atqo"
 ]
 
 [project.optional-dependencies]
