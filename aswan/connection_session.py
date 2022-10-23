@@ -1,9 +1,9 @@
 import sys
 import time
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from itertools import product
-from typing import Dict, Iterable, List, Optional, Type
+from typing import Iterable, List, Optional, Type
 
 import requests
 from atqo import ActorBase, CapabilitySet, SchedulerTask
@@ -14,15 +14,11 @@ from structlog import get_logger
 
 from .constants import HEADERS, Statuses
 from .exceptions import BrokenSessionError, ConnectionError
+from .models import CollEvent, RegEvent
 from .object_store import ObjectStore
 from .resources import Caps
-from .security import DEFAULT_PROXY, ProxyBase, ProxyData
-from .url_handler import (
-    ANY_HANDLER_T,
-    BrowserHandler,
-    RegisteredLink,
-    RequestSoupHandler,
-)
+from .security import DEFAULT_PROXY, ProxyBase
+from .url_handler import ANY_HANDLER_T, BrowserHandler, RequestSoupHandler
 from .utils import add_url_params
 
 logger = get_logger()
@@ -36,13 +32,8 @@ DEFAULT_EXCEPTION_STATUS = Statuses.PARSING_ERROR
 
 @dataclass
 class UrlHandlerResult:
-    handler_name: str
-    url: str
-    status: str
-    timestamp: int
-    output_file: Optional[str]
-    expiration_seconds: Optional[int]
-    registered_links: List["RegisteredLink"] = field(default_factory=list)
+    event: CollEvent
+    registered_links: List[RegEvent]
 
 
 @dataclass
@@ -52,17 +43,29 @@ class HandlingTask:
     url: str
     object_store: ObjectStore
 
-    def get_scheduler_task(self, proxy_dic: Dict[str, ProxyData]) -> SchedulerTask:
-        caps = [proxy_dic[self.handler.proxy_kind].cap]
+    def get_scheduler_task(self) -> SchedulerTask:
+        caps = self.handler.proxy.caps
         if isinstance(self.handler, BrowserHandler):
-            if not self.handler.headless:
+            if not self.handler.headless:  # pragma: no cover
                 caps.append(Caps.display)
-            if self.handler.eager:
-                caps.append(Caps.eager_browser)
+            if self.handler.eager:  # pragma: no cover
+                caps.append(Caps.eager_browser)  # how?
             else:
                 caps.append(Caps.normal_browser)
 
         return SchedulerTask(argument=self, requirements=caps)
+
+    def wrap_to_uhr(self, out, status):
+        return UrlHandlerResult(
+            event=CollEvent(
+                handler=self.handler_name,
+                url=self.url,
+                timestamp=int(time.time()),
+                output_file=self.object_store.dump(out) if out is not None else "",
+                status=status,
+            ),
+            registered_links=self.handler.pop_registered_links(),
+        )
 
     @property
     def handler_name(self):
@@ -75,12 +78,11 @@ class ConnectionSession(ActorBase):
         is_browser=False,
         headless=True,
         eager=False,
-        proxy_kls: Type[ProxyBase] = DEFAULT_PROXY,
+        proxy_cls: Type[ProxyBase] = DEFAULT_PROXY,
     ):
         self.is_browser = is_browser
         self.eager = eager
-        self._proxy_kls = proxy_kls()
-        self.proxy_host = self._proxy_kls.get_new_host()
+        self._proxy = proxy_cls()
 
         self.session = (
             BrowserSession(headless, self.eager)
@@ -90,7 +92,7 @@ class ConnectionSession(ActorBase):
         self._initiated_handlers = set()
         self._broken_handlers = set()
         self._num_queries = 0
-        self.session.start(self._proxy_kls, self.proxy_host)
+        self.session.start(self._proxy)
 
     def consume(self, task: HandlingTask) -> UrlHandlerResult:
         handler_name = task.handler_name
@@ -102,11 +104,14 @@ class ConnectionSession(ActorBase):
         if handler_name not in self._initiated_handlers:
             self._initiate_handler(task.handler)
 
+        cached_resp = task.handler.load_cache(task.url)
+        if cached_resp is not None:
+            return task.wrap_to_uhr(cached_resp, Statuses.CACHE_LOADED)
+
         task.handler.set_url(task.url)
-        task.handler.reset_expiration()
         time.sleep(task.handler.get_sleep_time())
         uh_result = self._get_uh_result(task)
-        if uh_result.status == Statuses.SESSION_BROKEN:
+        if uh_result.event.status == Statuses.SESSION_BROKEN:
             self._broken_handlers.add(handler_name)
         self._num_queries += 1
         return uh_result
@@ -115,7 +120,6 @@ class ConnectionSession(ActorBase):
         self.session.stop()
 
     def get_parsed_response(self, url, handler=RequestSoupHandler(), params=None):
-        """returns json serializable or dies trying"""
         if params:
             url = add_url_params(url, params)
         for attempt in range(handler.max_retries):
@@ -137,10 +141,10 @@ class ConnectionSession(ActorBase):
     def _restart(self, new_proxy=True):
         self.session.stop()
         if new_proxy:
-            self.proxy_host = self._proxy_kls.get_new_host()
+            self._proxy.set_new_host()
         self._initiated_handlers = set()
         self._broken_handlers = set()
-        self.session.start(self._proxy_kls, self.proxy_host)
+        self.session.start(self._proxy)
         self._num_queries = 0
 
     def _get_uh_result(
@@ -150,23 +154,13 @@ class ConnectionSession(ActorBase):
         try:
             out = self.get_parsed_response(task.url, task.handler)
             status = Statuses.PROCESSED
-            outfile = task.object_store.dump_json(out) if out is not None else out
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
-            outfile = None
-            _info = {**out, "proxy": self.proxy_host, "status": status}
+            _info = {**out, "proxy": self._proxy.host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
 
-        return UrlHandlerResult(
-            handler_name=task.handler_name,
-            url=task.url,
-            timestamp=int(time.time()),
-            output_file=outfile,
-            status=status,
-            expiration_seconds=task.handler.expiration_seconds,
-            registered_links=task.handler.pop_registered_links(),
-        )
+        return task.wrap_to_uhr(out, status)
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for _ in range(handler.initiation_retries):
@@ -186,13 +180,14 @@ class ConnectionSession(ActorBase):
 
 
 class BrowserSession:
-    def __init__(self, headless: bool, eager: bool):
+    def __init__(self, headless: bool, eager: bool, show_images: bool = False):
         self._headless = headless
         self._eager = eager
+        self._show_images = show_images
         self.driver: Optional[Chrome] = None
 
-    def start(self, proxy_kls: ProxyBase, proxy_host: str):
-        chrome_options = proxy_kls.chrome_optins_from_host(proxy_host)
+    def start(self, proxy: ProxyBase):
+        chrome_options = proxy.get_chrome_options()
         if sys.platform == "linux":
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--no-sandbox")
@@ -200,8 +195,12 @@ class BrowserSession:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--headless")
-        if self._eager:
+        if self._eager:  # pragma: no cover
             chrome_options.page_load_strategy = "eager"
+        if not self._show_images:
+            prefs = {"profile.managed_default_content_settings.images": 2}
+            chrome_options.add_experimental_option("prefs", prefs)
+
         logger.info(f"launching browser: {chrome_options.arguments}")
         self.driver = Chrome(options=chrome_options)
         logger.info("browser running")
@@ -209,7 +208,7 @@ class BrowserSession:
     def stop(self):
         try:
             self.driver.close()
-        except WebDriverException:
+        except WebDriverException:  # pragma: no cover
             logger.warning("could not stop browser")
 
     def get_response_content(self, handler: ANY_HANDLER_T, url: str):
@@ -217,17 +216,17 @@ class BrowserSession:
         out = handler.handle_driver(self.driver)
         if out is not None:
             return out
-        return self.driver.page_source
+        return self.driver.page_source.encode("utf-8")
 
 
 class RequestSession:
     def __init__(self):
         self.driver: Optional[requests.Session] = None
 
-    def start(self, proxy_kls: ProxyBase, proxy_host: str):
+    def start(self, proxy: ProxyBase):
         self.driver = requests.Session()
-        self.driver.headers.update(HEADERS)
-        self.driver.proxies.update(proxy_kls.rdict_from_host(proxy_host))
+        self.driver.headers.update(HEADERS)  # TODO custom headers
+        self.driver.proxies.update(proxy.get_requests_dict())
 
     def stop(self):
         pass
@@ -247,17 +246,23 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_dict(all_proxy_data: Iterable[ProxyData]):
+def get_actor_dict(all_proxy_data: Iterable[ProxyBase]):
 
     browsets = [[Caps.eager_browser], [Caps.normal_browser]]
     base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
     out = {}
-    for proxy_data, capset in product(all_proxy_data, base_capsets):
-        full_kwargs = dict(proxy_kls=proxy_data.kls)
+    for proxy, capset in product(all_proxy_data, base_capsets):
+        full_kwargs = dict(proxy_cls=type(proxy))
         for cap in capset:
             full_kwargs.update(cap_to_kwarg.get(cap, {}))
+        if (
+            full_kwargs.get("is_browser")
+            and full_kwargs.get("headless", True)
+            and proxy.needs_auth
+        ):
+            continue  # can't have auth (extension) in headless browser :(
         actor = partial_cls(ConnectionSession, **full_kwargs)
-        out[CapabilitySet([proxy_data.cap, *capset])] = actor
+        out[CapabilitySet([*proxy.caps, *capset])] = actor
 
     return out
 

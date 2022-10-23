@@ -4,22 +4,22 @@ dynamic = ["version", "description"]
 authors = [{name = "Endre Márk Borza", email = "endremborza@gmail.com"}]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "requests",
-    "dash-bootstrap-components",
     "beautifulsoup4",
     "html5lib",
     "selenium",
-    "dash",
     "sqlalchemy",
     "structlog",
     "pyyaml",
-    "atqo>=0.2.0",
+    "atqo >=0.2.2"
 ]
 
 [project.optional-dependencies]
-test = ["branthebuilder"]
+remote = ["zimmauth","fabric"]
+monitor = ["pandas","dash","dash-bootstrap-components"]
+test = ["branthebuilder","zimmauth[test]"]
 doc = ["branthebuilder[doc]"]
 
 [project.urls]
@@ -31,3 +31,6 @@ build-backend = "flit_core.buildapi"
 
 [tool.branb]
 line-length = 88
+
+[tool.pytest.ini_options]
+addopts = "-s"

@@ -13,6 +13,10 @@ HEADERS = {
     " Gecko/20100101 Firefox/76.0",
 }
 
+
+DEPOT_ROOT_ENV_VAR = "ASWAN_DEPOT_ROOT"
+DEFAULT_REMOTE_ENV_VAR = "ASWAN_REMOTE"
+DEFAULT_DEPOT_ROOT = Path.home() / "aswan-depots"
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 
 
@@ -28,9 +32,12 @@ ONE_YEAR = ONE_DAY * 365
 class Statuses:
 
     TODO = "todo"
-    EXPIRED = "expired"
     PROCESSING = "processing"
-    PROCESSED = "processed"
-    PARSING_ERROR = "parsing_error"
-    CONNECTION_ERROR = "connection_error"
-    SESSION_BROKEN = "session_broken"
+    PROCESSED = "D"
+    CACHE_LOADED = "CL"
+    PARSING_ERROR = "PE"
+    CONNECTION_ERROR = "CE"
+    SESSION_BROKEN = "SB"
+
+
+SUCCESS_STATUSES = [Statuses.PROCESSED, Statuses.CACHE_LOADED]

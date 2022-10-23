@@ -1,11 +1,13 @@
 import json
 import random
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, List, Optional, Type, Union
 from urllib.parse import urljoin
 
 import requests
 from structlog import get_logger
+
+from .models import RegEvent
+from .security import DEFAULT_PROXY, ProxyBase
 
 if TYPE_CHECKING:
     from bs4 import BeautifulSoup  # pragma: no cover
@@ -15,22 +17,21 @@ logger = get_logger()
 
 
 class UrlHandlerBase:
-    starter_urls: Iterable[str] = []
     test_urls: Iterable[str] = []
     url_root: Optional[str] = None
-    default_expiration: int = -1
-    proxy_kind: Optional[str] = None
+    proxy_cls: Type[ProxyBase] = DEFAULT_PROXY
 
     max_retries: int = 2
     initiation_retries: int = 2
     wait_on_initiation_fail: int = 20
     restart_session_after: int = 50
     # TODO: make ignore/transfer cookies possible
+    # additional header options too
 
     def __init__(self):
+        self.proxy = self.proxy_cls()
         self._registered_links = []
         self._url: Optional[str] = None
-        self.expiration_seconds = self.default_expiration
 
     def set_url(self, url):
         self._url = url
@@ -38,35 +39,27 @@ class UrlHandlerBase:
     def pre_parse(self, blob):
         return blob
 
-    def set_expiration(self, exp_secs):
-        self.expiration_seconds = exp_secs
-
-    def reset_expiration(self):
-        self.expiration_seconds = self.default_expiration
+    def load_cache(self, url):
+        return None
 
     def register_links_to_handler(
         self,
         links: Iterable[str],
         handler_cls: Optional[Type["ANY_HANDLER_T"]] = None,
-        expiration_time: Optional[int] = None,
+        overwrite: bool = False,
     ):
         if handler_cls is None:
             handler_cls = type(self)
-        if expiration_time is None:
-            if handler_cls == type(self):
-                expiration_time = self.expiration_seconds
-            else:
-                expiration_time = handler_cls.default_expiration
         self._registered_links += [
-            RegisteredLink(
-                handler_cls=handler_cls,
+            RegEvent(
                 url=self.extend_link(link),
-                expiration=expiration_time,
+                handler=handler_cls.__name__,
+                overwrite=overwrite,
             )
             for link in links
         ]
 
-    def pop_registered_links(self) -> List["RegisteredLink"]:
+    def pop_registered_links(self) -> List["RegEvent"]:
         out = self._registered_links
         self._registered_links = []
         return out
@@ -78,10 +71,6 @@ class UrlHandlerBase:
     @property
     def name(self):
         return type(self).__name__
-
-    @staticmethod
-    def get_restart_sleep_time():
-        return random.uniform(0.2, 1.2)
 
     @staticmethod
     def get_retry_sleep_time():
@@ -129,7 +118,7 @@ class BrowserHandler(UrlHandlerBase):
 
         if error occurs during handle browser, it comes here
         """
-        return True
+        return False
 
 
 ANY_HANDLER_T = Union[RequestHandler, BrowserHandler]
@@ -171,10 +160,3 @@ class BrowserSoupHandler(_SoupMixin, BrowserHandler):
 
 class BrowserJsonHandler(_JsonMixin, BrowserHandler):
     pass
-
-
-@dataclass
-class RegisteredLink:
-    handler_cls: Type[ANY_HANDLER_T]
-    url: str
-    expiration: int
