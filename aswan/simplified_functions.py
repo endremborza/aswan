@@ -1,4 +1,5 @@
 from typing import Dict, Iterable, Optional, Union
+from importlib import import_module
 
 from . import url_handler as urh
 from .connection_session import ConnectionSession
@@ -28,6 +29,7 @@ def run_simple_project(
     for handler, urls in urls_for_handlers.items():
         project.register_handler(handler)
         assert not isinstance(urls, str), "set an iterable for urls, not str"
+    project.register_module(import_module("__main__"))
 
     if remote:
         project.depot.setup()
