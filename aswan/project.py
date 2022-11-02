@@ -22,19 +22,20 @@ class Project:
         self,
         name: str,
         local_root: Optional[str] = None,
-        batch_size: Optional[int] = None,
         distributed_api=DEFAULT_MULTI_API,
+        max_displays: int = 4,
+        max_cpu_use: float = float(cpu_count()),
         debug=False,
     ):
 
         self.depot = AswanDepot(name, local_root)
         self.object_store = ObjectStore(self.depot.object_store_path)
-        self.batch_size = batch_size or min(cpu_count() * 4, 60)
         self.min_queue_size = self.batch_size // 2
         self.distributed_api = distributed_api
         self.debug = debug
-        self.max_displays = 4
-        self.max_cpu_use = int(cpu_count() * 1000)
+        self.max_displays = max_displays
+        self.max_cpu_use = int(max_cpu_use * 1000)
+        self.batch_size = min(self.max_cpu_use * 4, 60)
 
         self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
         self._scheduler: Optional[Scheduler] = None
