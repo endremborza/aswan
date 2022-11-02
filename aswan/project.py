@@ -22,7 +22,6 @@ class Project:
         self,
         name: str,
         local_root: Optional[str] = None,
-        min_queue_size: Optional[int] = None,
         batch_size: Optional[int] = None,
         distributed_api=DEFAULT_MULTI_API,
         debug=False,
@@ -31,7 +30,7 @@ class Project:
         self.depot = AswanDepot(name, local_root)
         self.object_store = ObjectStore(self.depot.object_store_path)
         self.batch_size = batch_size or min(cpu_count() * 4, 60)
-        self.min_queue_size = min_queue_size or (self.batch_size // 2)
+        self.min_queue_size = self.batch_size // 2
         self.distributed_api = distributed_api
         self.debug = debug
 
