@@ -21,6 +21,7 @@ class UrlHandlerBase:
     url_root: Optional[str] = None
     proxy_cls: Type[ProxyBase] = DEFAULT_PROXY
 
+    max_in_parallel: Optional[int] = None
     max_retries: int = 2
     initiation_retries: int = 2
     wait_on_initiation_fail: int = 20

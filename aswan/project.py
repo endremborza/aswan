@@ -33,6 +33,8 @@ class Project:
         self.min_queue_size = self.batch_size // 2
         self.distributed_api = distributed_api
         self.debug = debug
+        self.max_displays = 4
+        self.max_cpu_use = int(cpu_count() * 1000)
 
         self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
         self._scheduler: Optional[Scheduler] = None
@@ -142,10 +144,16 @@ class Project:
         proxy_limits = {
             k: p.max_at_once for k, p in self._proxy_dic.items() if p.max_at_once
         }
-        # TODO stupid literals
+        handler_limits = {
+            h.name: h.max_in_parallel
+            for h in self._handler_dic.values()
+            if h.max_in_parallel is not None
+        }
+        # TODO add option to alternate cpu use
         return {
-            REnum.mCPU: int(cpu_count() * 1000),
-            REnum.DISPLAY: 4,
+            REnum.mCPU: self.max_cpu_use,
+            REnum.DISPLAY: self.max_displays,
+            **handler_limits,
             **proxy_limits,
         }
 

@@ -6,7 +6,7 @@ from itertools import product
 from typing import Iterable, List, Optional, Type
 
 import requests
-from atqo import ActorBase, CapabilitySet, SchedulerTask
+from atqo import ActorBase, Capability, CapabilitySet, SchedulerTask
 from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
@@ -49,9 +49,12 @@ class HandlingTask:
             if not self.handler.headless:  # pragma: no cover
                 caps.append(Caps.display)
             if self.handler.eager:  # pragma: no cover
-                caps.append(Caps.eager_browser)  # how?
+                caps.append(Caps.eager_browser)  # how to test?
             else:
                 caps.append(Caps.normal_browser)
+        if self.handler.max_in_parallel is not None:
+            _cname = f"cap-{self.handler_name}"
+            caps.append(Capability({self.handler_name: 1}, name=_cname))
 
         return SchedulerTask(argument=self, requirements=caps)
 
