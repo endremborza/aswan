@@ -30,12 +30,12 @@ class Project:
 
         self.depot = AswanDepot(name, local_root)
         self.object_store = ObjectStore(self.depot.object_store_path)
-        self.min_queue_size = self.batch_size // 2
         self.distributed_api = distributed_api
         self.debug = debug
         self.max_displays = max_displays
         self.max_cpu_use = int(max_cpu_use * 1000)
         self.batch_size = min(self.max_cpu_use * 4, 60)
+        self.min_queue_size = self.batch_size // 2
 
         self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
         self._scheduler: Optional[Scheduler] = None
