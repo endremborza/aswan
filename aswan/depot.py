@@ -13,7 +13,7 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import CalledProcessError, check_output
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union, Callable
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Optional, Union
 
 import sqlalchemy as db
 import yaml
