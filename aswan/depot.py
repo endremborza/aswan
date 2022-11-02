@@ -13,7 +13,7 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import CalledProcessError, check_output
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union, Callable
 
 import sqlalchemy as db
 import yaml
@@ -76,6 +76,12 @@ class _DepotObj:
 class Status(_DepotObj):
     parent: Optional[str] = None
     integrated_runs: List[str] = field(default_factory=list)
+
+    def get_full_run_tree(self, status_finder: Callable[[str], "Status"]):
+        out = set(self.integrated_runs)
+        if self.parent:
+            out |= status_finder(self.parent).get_full_run_tree(status_finder)
+        return out
 
     @property
     def name(self):
@@ -179,10 +185,13 @@ class AswanDepot:
     def get_complete_status(self) -> Status:
         # either an existing, a new or a blank status
         leaf = self._get_leaf()
-        missing_runs = self.get_all_run_ids() - set(leaf.integrated_runs)
+        missing_runs = self.get_all_run_ids() - leaf.get_full_run_tree(self.get_status)
         if missing_runs:
             return self.integrate(leaf, missing_runs)
         return leaf
+
+    def get_status(self, status_name):
+        return Status.read(self.statuses_path / status_name)
 
     def get_all_run_ids(self):
         return set(map(Path.name.fget, self.runs_path.iterdir()))
@@ -335,7 +344,7 @@ class AswanDepot:
         leaf = self._get_leaf()
         if leaf.name in remote_statuses:
             _mv(self.statuses_path / leaf.name / STATUS_DB_ZIP)
-        for run in remote_runs - set(leaf.integrated_runs):
+        for run in remote_runs - leaf.get_full_run_tree(self.get_status):
             _mv(self.runs_path / run / EVENTS_ZIP)
         if complete:
             # TODO: more sophisticated pull with parts of ostore
@@ -366,7 +375,8 @@ class AswanDepot:
 
         rem_abs_path = f"{conn.cwd}/{local_path.relative_to(self.root)}"
         if not put:
-            return conn.get(rem_abs_path, local_path.as_posix())
+            if not local_path.exists():
+                return conn.get(rem_abs_path, local_path.as_posix())
         try:
             conn.run(f"test -f {rem_abs_path}")
         except invoke.UnexpectedExit:
