@@ -13,6 +13,7 @@ AswanDepot
       ~AswanDepot.get_all_run_ids
       ~AswanDepot.get_complete_status
       ~AswanDepot.get_handler_events
+      ~AswanDepot.get_status
       ~AswanDepot.init_w_complete
       ~AswanDepot.integrate
       ~AswanDepot.pull
@@ -27,6 +28,7 @@ AswanDepot
    .. automethod:: get_all_run_ids
    .. automethod:: get_complete_status
    .. automethod:: get_handler_events
+   .. automethod:: get_status
    .. automethod:: init_w_complete
    .. automethod:: integrate
    .. automethod:: pull
