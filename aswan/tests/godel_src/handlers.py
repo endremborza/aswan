@@ -68,6 +68,7 @@ class LinkRoot(aswan.RequestSoupHandler):
     test_urls = ["/test_page/godel_wiki.html"]
     _init_failer = True
     wait_on_initiation_fail = 0
+    max_in_parallel = 1
 
     def parse(self, soup: BeautifulSoup):
         for a in soup.find_all("a"):
