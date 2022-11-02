@@ -143,7 +143,9 @@ class Project:
     @property
     def resource_limits(self):
         proxy_limits = {
-            k: p.max_at_once for k, p in self._proxy_dic.items() if p.max_at_once
+            handler.proxy.res_id: handler.proxy.max_at_once
+            for handler in self._handler_dic.values()
+            if handler.proxy.max_at_once
         }
         handler_limits = {
             h.name: h.max_in_parallel
@@ -213,19 +215,11 @@ class Project:
 
     def _create_scheduler(self):
         self._scheduler = Scheduler(
-            actor_dict=get_actor_dict(self._proxy_dic.values()),
+            actor_dict=get_actor_dict(self._handler_dic.values()),
             resource_limits=self.resource_limits,
             distributed_system=self.distributed_api,  # TODO move test to sync?
             verbose=self.debug,
         )
-
-    @property
-    def _proxy_dic(self):
-        return {
-            handler.proxy.res_id: handler.proxy
-            for handler in self._handler_dic.values()
-            if handler.proxy
-        }
 
 
 class ParsedCollectionEvent:

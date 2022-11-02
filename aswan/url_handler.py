@@ -4,9 +4,11 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, Type, Union
 from urllib.parse import urljoin
 
 import requests
+from atqo import Capability, CapabilitySet
 from structlog import get_logger
 
 from .models import RegEvent
+from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase
 
 if TYPE_CHECKING:
@@ -64,6 +66,21 @@ class UrlHandlerBase:
         out = self._registered_links
         self._registered_links = []
         return out
+
+    def get_caps(self):
+        caps = [*self.proxy.caps]
+        if isinstance(self, BrowserHandler):
+            if not self.headless:  # pragma: no cover
+                caps.append(Caps.display)
+            if self.eager:  # pragma: no cover
+                caps.append(Caps.eager_browser)  # how to test?
+            else:
+                caps.append(Caps.normal_browser)
+        else:
+            caps.append(Caps.simple)
+        if self.max_in_parallel is not None:
+            caps.append(Capability({self.name: 1}, name=f"{self.name}-cap"))
+        return CapabilitySet(caps)
 
     @classmethod
     def extend_link(cls, link: str) -> str:

@@ -1,5 +1,5 @@
-from typing import Dict, Iterable, Optional, Union
 from importlib import import_module
+from typing import Dict, Iterable, Optional, Union
 
 from . import url_handler as urh
 from .connection_session import ConnectionSession

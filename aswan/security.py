@@ -37,7 +37,7 @@ class ProxyBase:
             in_cap[self.res_id] = 1
         self.host = self.set_new_host()
         self.needs_auth = self.get_creds() is not None
-        self.caps = [Capability(in_cap, name=f"pcap-{name}")]
+        self.caps = [Capability(in_cap, name=f"{name}-pcap")]
 
     def get_creds(self) -> Optional[ProxyAuth]:
         """if authentication is needed"""

@@ -2,11 +2,10 @@ import sys
 import time
 import traceback
 from dataclasses import dataclass
-from itertools import product
 from typing import Iterable, List, Optional, Type
 
 import requests
-from atqo import ActorBase, Capability, CapabilitySet, SchedulerTask
+from atqo import ActorBase, SchedulerTask
 from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
@@ -18,7 +17,7 @@ from .models import CollEvent, RegEvent
 from .object_store import ObjectStore
 from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase
-from .url_handler import ANY_HANDLER_T, BrowserHandler, RequestSoupHandler
+from .url_handler import ANY_HANDLER_T, RequestSoupHandler
 from .utils import add_url_params
 
 logger = get_logger()
@@ -44,18 +43,7 @@ class HandlingTask:
     object_store: ObjectStore
 
     def get_scheduler_task(self) -> SchedulerTask:
-        caps = self.handler.proxy.caps
-        if isinstance(self.handler, BrowserHandler):
-            if not self.handler.headless:  # pragma: no cover
-                caps.append(Caps.display)
-            if self.handler.eager:  # pragma: no cover
-                caps.append(Caps.eager_browser)  # how to test?
-            else:
-                caps.append(Caps.normal_browser)
-        if self.handler.max_in_parallel is not None:
-            _cname = f"cap-{self.handler_name}"
-            caps.append(Capability({self.handler_name: 1}, name=_cname))
-
+        caps = self.handler.get_caps()
         return SchedulerTask(argument=self, requirements=caps)
 
     def wrap_to_uhr(self, out, status):
@@ -249,24 +237,21 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_dict(all_proxy_data: Iterable[ProxyBase]):
-
-    browsets = [[Caps.eager_browser], [Caps.normal_browser]]
-    base_capsets = [[Caps.simple]] + browsets + [[Caps.display, *bs] for bs in browsets]
+def get_actor_dict(handlers: Iterable[ANY_HANDLER_T]):
     out = {}
-    for proxy, capset in product(all_proxy_data, base_capsets):
-        full_kwargs = dict(proxy_cls=type(proxy))
-        for cap in capset:
+    for handler in handlers:
+        caps = handler.get_caps()
+        full_kwargs = dict(proxy_cls=handler.proxy_cls)
+        for cap in caps:
             full_kwargs.update(cap_to_kwarg.get(cap, {}))
         if (
             full_kwargs.get("is_browser")
             and full_kwargs.get("headless", True)
-            and proxy.needs_auth
+            and handler.proxy.needs_auth
         ):
-            continue  # can't have auth (extension) in headless browser :(
+            raise RuntimeError("can't have auth (extension) in headless browser")
         actor = partial_cls(ConnectionSession, **full_kwargs)
-        out[CapabilitySet([*proxy.caps, *capset])] = actor
-
+        out[caps] = actor
     return out
 
 
