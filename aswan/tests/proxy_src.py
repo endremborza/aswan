@@ -1,6 +1,6 @@
 from base64 import b64decode
 
-from flask import Flask, request
+from flask import Flask, Response, request
 from requests import get
 
 proxy_port = 8877
@@ -25,4 +25,5 @@ def proxy(path):  # pragma: no cover
     proper_url = f"http://{proper_host}/{path}"
     if str(proxy_port) in proper_url:
         return b"OK"
-    return get(proper_url).content
+    resp = get(proper_url)
+    return Response(resp.content, status=resp.status_code)
