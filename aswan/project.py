@@ -9,8 +9,7 @@ from . import url_handler as urh
 from .connection_session import HandlingTask, get_actor_dict
 from .constants import Statuses
 from .depot import AswanDepot, Status
-from .models import CollEvent, RegEvent, SourceUrl
-from .object_store import ObjectStore
+from .models import RegEvent, SourceUrl
 from .resources import REnum
 from .utils import is_subclass, run_and_log_functions
 
@@ -29,7 +28,6 @@ class Project:
     ):
 
         self.depot = AswanDepot(name, local_root)
-        self.object_store = ObjectStore(self.depot.object_store_path)
         self.distributed_api = distributed_api
         self.debug = debug
         self.max_displays = max_displays
@@ -126,32 +124,14 @@ class Project:
         self._monitor_app_process.terminate()
         self._monitor_app_process.join()
 
-    def handler_events(
-        self,
-        handler: Type[urh.ANY_HANDLER_T] = None,
-        only_successful: bool = True,
-        only_latest: bool = True,
-        limit=float("inf"),
-        past_run_count=0,
-    ) -> Iterable["ParsedCollectionEvent"]:
-        name = handler.__name__ if handler is not None else None
-        for cev in self.depot.get_handler_events(
-            name, only_successful, only_latest, limit, past_run_count
-        ):
-            yield ParsedCollectionEvent(cev.extend(), self)
-
     @property
     def resource_limits(self):
-        proxy_limits = {
-            handler.proxy.res_id: handler.proxy.max_at_once
-            for handler in self._handler_dic.values()
-            if handler.proxy.max_at_once
-        }
-        handler_limits = {
-            h.name: h.max_in_parallel
-            for h in self._handler_dic.values()
-            if h.max_in_parallel is not None
-        }
+        proxy_limits, handler_limits = {}, {}
+        for handler in self._handler_dic.values():
+            if handler.proxy.max_at_once:
+                proxy_limits[handler.proxy.res_id] = handler.proxy.max_at_once
+            if handler.max_in_parallel is not None:
+                handler_limits[handler.name] = handler.max_in_parallel
         # TODO add option to alternate cpu use
         return {
             REnum.mCPU: self.max_cpu_use,
@@ -188,7 +168,7 @@ class Project:
             HandlingTask(
                 handler=self._handler_dic[next_surl.handler],
                 url=next_surl.url,
-                object_store=self.object_store,
+                object_store=self.depot.object_store,
             ).get_scheduler_task()
             for next_surl in surl_batch
         ]
@@ -220,23 +200,6 @@ class Project:
             distributed_system=self.distributed_api,  # TODO move test to sync?
             verbose=self.debug,
         )
-
-
-class ParsedCollectionEvent:
-    def __init__(self, cev: "CollEvent", project: Project):
-        self.url = cev.url
-        self.handler_name = cev.handler
-        self.output_file = cev.output_file
-        self._ostore = project.object_store
-        self._time = cev.timestamp
-        self.status = cev.status
-
-    @property
-    def content(self):
-        return self._ostore.read(self.output_file) if self.output_file else None
-
-    def __repr__(self):
-        return f"{self.status}: {self.handler_name} - {self.url} ({self._time})"
 
 
 def _get_event_bunch(handler: Type[urh.ANY_HANDLER_T], urls, overwrite=False):

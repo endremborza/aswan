@@ -42,6 +42,6 @@ def test_project_run(env_auth_id: str, godel_test_app, tmp_path: Path):
     project.depot.pull(env_auth_id, True)
     project.depot.setup(True)
 
-    axiom_res = next(project.handler_events(past_run_count=1))
+    axiom_res = next(project.depot.get_handler_events(past_runs=1))
     assert b"Axiom" in axiom_res.content
     assert "Axiom" in axiom_res.__repr__()

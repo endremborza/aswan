@@ -15,21 +15,17 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
 
     test_project.register_module(ghandlers)
     test_project.run(test_run=True, keep_running=False, force_sync=True)
+    depot = test_project.depot
+    _ghe = depot.get_handler_events
 
-    assert (
-        next(test_project.handler_events(ghandlers.LinkRoot)).status
-        == aswan.Statuses.PROCESSED
-    )
+    assert next(_ghe(ghandlers.LinkRoot)).status == aswan.Statuses.PROCESSED
 
     def _get_found():
-        return [
-            pcev.content["main"]
-            for pcev in test_project.handler_events(ghandlers.GetMain)
-        ]
+        return sorted([pcev.content["main"] for pcev in _ghe(ghandlers.GetMain)])
 
     assert _get_found() == ["Alonzo Church"]
     test_project.continue_run()
-    assert sorted(_get_found()) == ["Alonzo Church", "Entscheidungsproblem"]
+    assert _get_found() == ["Alonzo Church", "Entscheidungsproblem"]
 
     with pytest.raises(PermissionError):
         test_project.commit_current_run()
@@ -42,10 +38,12 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
         }
     )
 
-    assert sorted(_get_found()) == ["Alonzo Church", "Entscheidungsproblem"]
-    for pcev in test_project.handler_events(ghandlers.GetMain, only_successful=False):
-        if pcev.status == aswan.Statuses.CONNECTION_ERROR:
-            assert pcev.url.split("/")[-1] == "Alan_Turing"
+    assert _get_found() == ["Alonzo Church", "Entscheidungsproblem"]
+    assert ["Alan_Turing"] == [
+        pcev.url.split("/")[-1]
+        for pcev in _ghe(ghandlers.GetMain, only_successful=False)
+        if pcev.status == aswan.Statuses.CONNECTION_ERROR
+    ]
 
     if os.name != "nt":
         test_project.depot.push(env_auth_id)
@@ -66,8 +64,8 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
     urlcount = Counter(
         [
             pcev.url.split("/")[-1]
-            for pcev in test_project.handler_events(
-                ghandlers.Clicker, only_latest=False, past_run_count=2
+            for pcev in depot.get_handler_events(
+                ghandlers.Clicker, only_latest=False, past_runs=2
             )
         ]
     )

@@ -1,5 +1,6 @@
 import os
 import sys
+from itertools import islice
 from pathlib import Path
 from time import time
 
@@ -66,9 +67,7 @@ class MonitorApp:
 
     def update_store(self, _):
 
-        cevs = self.depot.get_handler_events(
-            only_latest=False, only_successful=False, limit=self.cev_limit
-        )
+        pcevs = self.depot.get_handler_events(only_latest=False, only_successful=False)
         session = sessionmaker(self.depot.current.engine)()
         source_urls_grouped = (
             session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
@@ -83,7 +82,8 @@ class MonitorApp:
             .fillna(0)
             .to_dict("records")
         )
-        return {"source_url_rate": surls, "coll_events": [*map(CollEvent.dict, cevs)]}
+        cev_dicts = [pcev.cev.dict() for pcev in islice(pcevs, self.cev_limit)]
+        return {"source_url_rate": surls, "coll_events": cev_dicts}
 
     def update_metrics(self, store_data: dict):
         coll_evs = store_data.get("coll_events", [])

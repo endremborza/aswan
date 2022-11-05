@@ -16,7 +16,8 @@ from aswan import AswanDepot, Project
 from aswan.models import Base
 from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
 from aswan.tests.proxy_src import proxy_app_creator, proxy_port
-from aswan.depot import HEX_ENV, PW_ENV
+from aswan.depot import HEX_ENV, PW_ENV, DEFAULT_REMOTE_ENV_VAR
+from aswan.constants import DEPOT_ROOT_ENV_VAR
 
 _CNAME = "ssh-conn"
 
@@ -120,8 +121,9 @@ def test_proxy():
 
 @pytest.fixture
 def env_auth_id(private_key_path: Path, tmp_path: Path, server):
-    rem_path = tmp_path / "remote"
+    rem_path, local_path = tmp_path / "remote", tmp_path / "local"
     rem_path.mkdir()
+    local_path.mkdir()
     test_dic = {
         "rsa-keys": {"rsa-key-name": private_key_path.read_text()},
         "ssh": {
@@ -137,4 +139,6 @@ def env_auth_id(private_key_path: Path, tmp_path: Path, server):
     pw = "AWPW7"
     os.environ[PW_ENV] = pw
     os.environ[HEX_ENV] = ZimmAuth.dumps_dict(test_dic, pw)
+    os.environ[DEFAULT_REMOTE_ENV_VAR] = _CNAME
+    os.environ[DEPOT_ROOT_ENV_VAR] = local_path.as_posix()
     return _CNAME
