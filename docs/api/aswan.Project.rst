@@ -19,7 +19,6 @@ Project
       ~Project.cleanup_current_run
       ~Project.commit_current_run
       ~Project.continue_run
-      ~Project.handler_events
       ~Project.register_handler
       ~Project.register_module
       ~Project.run
@@ -35,7 +34,6 @@ Project
    .. automethod:: cleanup_current_run
    .. automethod:: commit_current_run
    .. automethod:: continue_run
-   .. automethod:: handler_events
    .. automethod:: register_handler
    .. automethod:: register_module
    .. automethod:: run

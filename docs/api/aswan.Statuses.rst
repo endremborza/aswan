@@ -13,6 +13,8 @@ Statuses
       ~Statuses.CACHE_LOADED
       ~Statuses.CONNECTION_ERROR
       ~Statuses.PARSING_ERROR
+      ~Statuses.PERSISTENT_CACHED
+      ~Statuses.PERSISTENT_PROCESSED
       ~Statuses.PROCESSED
       ~Statuses.PROCESSING
       ~Statuses.SESSION_BROKEN
@@ -23,6 +25,8 @@ Statuses
    .. autoattribute:: CACHE_LOADED
    .. autoattribute:: CONNECTION_ERROR
    .. autoattribute:: PARSING_ERROR
+   .. autoattribute:: PERSISTENT_CACHED
+   .. autoattribute:: PERSISTENT_PROCESSED
    .. autoattribute:: PROCESSED
    .. autoattribute:: PROCESSING
    .. autoattribute:: SESSION_BROKEN
