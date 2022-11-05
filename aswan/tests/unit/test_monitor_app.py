@@ -18,3 +18,5 @@ def test_monitor_app(test_depot: AswanDepot):
     elems = mapp.update_metrics(store)
     assert elems
     mapp.update_status(store)
+
+    assert mapp.update_metrics({}) == []
