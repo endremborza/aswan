@@ -5,7 +5,7 @@ from typing import Iterable, List, Union
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import and_
 
-from .constants import SUCCESS_STATUSES, Statuses
+from .constants import Statuses
 from .models import CollEvent, RegEvent, SourceUrl
 
 
@@ -25,10 +25,9 @@ def add_urls(session: Session, handler: str, urls: Iterable[str], overwrite=Fals
 
 def update_sources(session: Session, handler: str, urls: Iterable[str], status):
     base_q = session.query(SourceUrl).filter(
-        SourceUrl.handler == handler,
-        SourceUrl.url.in_(urls),
+        SourceUrl.handler == handler, SourceUrl.url.in_(urls)
     )
-    if status in SUCCESS_STATUSES:
+    if status in [Statuses.PROCESSED, Statuses.CACHE_LOADED]:
         base_q.delete()
     else:
         base_q.update({"current_status": status})

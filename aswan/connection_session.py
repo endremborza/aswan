@@ -97,7 +97,12 @@ class ConnectionSession(ActorBase):
 
         cached_resp = task.handler.load_cache(task.url)
         if cached_resp is not None:
-            return task.wrap_to_uhr(cached_resp, Statuses.CACHE_LOADED)
+            status = (
+                Statuses.PERSISTENT_CACHED
+                if task.handler.process_indefinitely
+                else Statuses.CACHE_LOADED
+            )
+            return task.wrap_to_uhr(cached_resp, status)
 
         task.handler.set_url(task.url)
         time.sleep(task.handler.get_sleep_time())
@@ -144,7 +149,10 @@ class ConnectionSession(ActorBase):
     ) -> UrlHandlerResult:
         try:
             out = self.get_parsed_response(task.url, task.handler)
-            status = Statuses.PROCESSED
+            if task.handler.process_indefinitely:
+                status = Statuses.PERSISTENT_PROCESSED
+            else:
+                status = Statuses.PROCESSED
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)

@@ -34,10 +34,17 @@ class Statuses:
     TODO = "todo"
     PROCESSING = "processing"
     PROCESSED = "D"
+    PERSISTENT_PROCESSED = "PP"
     CACHE_LOADED = "CL"
+    PERSISTENT_CACHED = "PC"
     PARSING_ERROR = "PE"
     CONNECTION_ERROR = "CE"
     SESSION_BROKEN = "SB"
 
 
-SUCCESS_STATUSES = [Statuses.PROCESSED, Statuses.CACHE_LOADED]
+SUCCESS_STATUSES = [
+    Statuses.PROCESSED,
+    Statuses.CACHE_LOADED,
+    Statuses.PERSISTENT_PROCESSED,
+    Statuses.PERSISTENT_CACHED,
+]
