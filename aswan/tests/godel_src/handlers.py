@@ -31,17 +31,16 @@ class GetMain(aswan.RequestSoupHandler):
     proxy_cls = AuthedProxy
     url_root = test_app_default_address
     test_urls = ["/test_page/Alonzo_Church.html", "/test_page/Nonexistent"]
+    process_indefinitely = True
     _vtries = 0
 
     def parse(self, soup: BeautifulSoup):
         return {"main": soup.find("b").text.strip()}
 
     def is_session_broken(self, result: Union[int, Exception]):
-        if isinstance(result, int) and result == 404:
-            if self._vtries < 1:
-                self._vtries = 2
-                return True
-
+        if isinstance(result, int) and (result == 404) and (self._vtries < 1):
+            self._vtries = 2
+            return True
         return False
 
 
