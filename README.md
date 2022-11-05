@@ -17,6 +17,10 @@ Collect and compress data from the internet for later parsing
   - sync to parse  
 - immutable collection
 
+## To Setup a Remote
+
+set the environment variables `ASWAN_AUTH_HEX` and `ASWAN_AUTH_PASS` according to the [zimmauth](https://github.com/endremborza/zimmauth) package, and `ASWAN_REMOTE` with the name of the default remote.
+
 ## Concepts
 
 - objects
@@ -64,7 +68,6 @@ Collect and compress data from the internet for later parsing
   - a test run can be made on it...
 
 
-
 when starting a run:
   - check if current-run is empty
     - if not, fail with 
@@ -78,18 +81,8 @@ when starting a run:
 
 ## Pre v1.0 laundry list
 
-- proxy auth test
-- session break tests
-- push/pull tests
-
-
-git tag --sort=committerdate
-
-
 - parsing/connection error confusion
   - also broken session thing
-- conn session cpu requirement
-- resource limits
 - transferring / ignoring cookies
 
 
