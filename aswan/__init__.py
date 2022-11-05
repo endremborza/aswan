@@ -16,5 +16,6 @@ from .url_handler import (
     RequestJsonHandler,
     RequestSoupHandler,
 )
+from .utils import add_url_params
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
