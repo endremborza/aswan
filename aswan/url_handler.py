@@ -28,6 +28,7 @@ class UrlHandlerBase:
     initiation_retries: int = 2
     wait_on_initiation_fail: int = 20
     restart_session_after: int = 50
+    process_indefinitely: bool = False
     # TODO: make ignore/transfer cookies possible
     # additional header options too
 
