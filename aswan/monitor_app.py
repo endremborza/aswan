@@ -67,7 +67,10 @@ class MonitorApp:
 
     def update_store(self, _):
 
-        pcevs = self.depot.get_handler_events(only_latest=False, only_successful=False)
+        # TODO: possibly read past runs
+        pcevs = self.depot.get_handler_events(
+            only_latest=False, only_successful=False, from_current=True
+        )
         session = sessionmaker(self.depot.current.engine)()
         source_urls_grouped = (
             session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
