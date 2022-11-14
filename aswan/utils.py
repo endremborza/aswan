@@ -67,7 +67,6 @@ def add_url_params(url, params):
     get_args = parsed_url.query
     parsed_get_args = dict(parse_qsl(get_args))
     parsed_get_args.update(params)
-
     parsed_get_args.update(
         {
             k: json.dumps(v)
