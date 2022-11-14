@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, Union
 
+from bs4 import BeautifulSoup
+
 _COMP_NAME = "content"
 
 
@@ -47,6 +49,9 @@ class ObjectStore:
             self.root_path.rmdir()
 
     def dump(self, obj: Union[list, dict, str, bytes]):
+        if isinstance(obj, BeautifulSoup):
+            # can result in infinite recursion for pickling, dunno why
+            obj = obj.encode("utf-8")
         for _t, fun in [
             ((list, dict), self.dump_json),
             (str, self.dump_str),
@@ -56,14 +61,14 @@ class ObjectStore:
                 return fun(obj)
         return self.dump_pickle(obj)
 
-    def dump_json(self, obj: Union[list, dict], ext=None) -> str:
-        return self.dump_str(json.dumps(obj), ext or _Exts.json)
+    def dump_json(self, obj: Union[list, dict]) -> str:
+        return self.dump_str(json.dumps(obj), _Exts.json)
 
     def dump_str(self, s: str, ext=None) -> str:
         return self.dump_bytes(s.encode("utf-8"), ext or _Exts.txt)
 
-    def dump_pickle(self, obj, ext=None) -> str:
-        return self.dump_bytes(pickle.dumps(obj), ext or _Exts.pkl)
+    def dump_pickle(self, obj) -> str:
+        return self.dump_bytes(pickle.dumps(obj), _Exts.pkl)
 
     def dump_bytes(self, buf: bytes, ext=None) -> str:
         name_hash = self.hash_fun(buf).hexdigest()
