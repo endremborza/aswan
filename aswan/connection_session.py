@@ -95,7 +95,11 @@ class ConnectionSession(ActorBase):
         if handler_name not in self._initiated_handlers:
             self._initiate_handler(task.handler)
 
-        cached_resp = task.handler.load_cache(task.url)
+        try:
+            cached_resp = task.handler.load_cache(task.url)
+        except Exception as e:
+            logger.warn("error during cache loading", e=e, e_type=type(e))
+            cached_resp = None
         if cached_resp is not None:
             status = (
                 Statuses.PERSISTENT_CACHED
