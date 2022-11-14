@@ -1,23 +1,24 @@
 import os
-from pathlib import Path
 import sys
 import time
 from multiprocessing import Process
+from pathlib import Path
 from typing import Optional
 
 import pytest
 import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from zimmauth.test_core import TEST_USER, Server, private_key_path, server
 from zimmauth import ZimmAuth
+from zimmauth.core import LOCAL_HOST_NAMES_ENV_VAR
+from zimmauth.test_core import TEST_USER, Server, private_key_path, server
 
 from aswan import AswanDepot, Project
+from aswan.constants import DEPOT_ROOT_ENV_VAR
+from aswan.depot import DEFAULT_REMOTE_ENV_VAR, HEX_ENV, PW_ENV
 from aswan.models import Base
 from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
 from aswan.tests.proxy_src import proxy_app_creator, proxy_port
-from aswan.depot import HEX_ENV, PW_ENV, DEFAULT_REMOTE_ENV_VAR
-from aswan.constants import DEPOT_ROOT_ENV_VAR
 
 _CNAME = "ssh-conn"
 
@@ -141,4 +142,6 @@ def env_auth_id(private_key_path: Path, tmp_path: Path, server):
     os.environ[HEX_ENV] = ZimmAuth.dumps_dict(test_dic, pw)
     os.environ[DEFAULT_REMOTE_ENV_VAR] = _CNAME
     os.environ[DEPOT_ROOT_ENV_VAR] = local_path.as_posix()
+    if os.name == "nt":
+        os.environ[LOCAL_HOST_NAMES_ENV_VAR] = Server.host
     return _CNAME
