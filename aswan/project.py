@@ -101,6 +101,8 @@ class Project:
 
     def register_handler(self, handler: Type[urh.ANY_HANDLER_T]):
         # called for .name to work later and proxy to init
+        if handler.__name__ in self._handler_dic.keys():
+            return
         self._handler_dic[handler.__name__] = handler()
         return handler
 
@@ -182,6 +184,7 @@ class Project:
         for url_dic, ovw in [(urls_to_register, False), (urls_to_overwrite, True)]:
             for handler, urls in (url_dic or {}).items():
                 reg_events.extend(_get_event_bunch(handler, urls, ovw))
+                self.register_handler(handler)
 
         if self._is_test:
             status = Status()
