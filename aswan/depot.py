@@ -395,7 +395,7 @@ class AswanDepot:
 
         local_posix = dir_path.relative_to(self.root).as_posix()
         try:
-            _ls: List[str] = conn.run(f"ls {local_posix}").stdout.split()
+            _ls: List[str] = conn.run(f"ls {local_posix}", hide=True).stdout.split()
         except invoke.UnexpectedExit:
             _ls = []
         for remote_name in _ls:
