@@ -3,6 +3,7 @@ from string import ascii_letters
 
 import pytest
 from atqo import parallel_map
+from bs4 import BeautifulSoup
 
 from aswan.object_store import ObjectStore
 
@@ -64,3 +65,8 @@ def test_purge(tmp_obj_store: ObjectStore):
     for obj, oname in zip(objs, onames):
         with pytest.raises(FileNotFoundError):
             assert obj == tmp_obj_store.read_pickle(oname)
+
+
+def test_soup(tmp_obj_store: ObjectStore):
+    s = BeautifulSoup("<html></html>", "html5lib")
+    tmp_obj_store.dump(s)
