@@ -162,7 +162,6 @@ class ConnectionSession(ActorBase):
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
             _info = {**out, "proxy": self._proxy.host, "status": status}
             logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
-
         return task.wrap_to_uhr(out, status)
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
