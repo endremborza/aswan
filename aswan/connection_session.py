@@ -1,6 +1,5 @@
 import sys
 import time
-import traceback
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Type
 
@@ -130,9 +129,9 @@ class ConnectionSession(ActorBase):
                     break
             except Exception as e:
                 content = e
-            logger.warning("Missed try", error=str(content), url=url, attempt=attempt)
+            self._log_miss("Failed Try", content, handler, attempt, "RETRY", url)
             if handler.is_session_broken(content):
-                raise BrokenSessionError(f"error: {content}")
+                raise BrokenSessionError(f"error: {content}".split("\n")[0])
             time.sleep(handler.get_retry_sleep_time())
         else:
             raise ConnectionError(f"request resulted in error with status {content}")
@@ -147,10 +146,7 @@ class ConnectionSession(ActorBase):
         self.session.start(self._proxy)
         self._num_queries = 0
 
-    def _get_uh_result(
-        self,
-        task: HandlingTask,
-    ) -> UrlHandlerResult:
+    def _get_uh_result(self, task: HandlingTask) -> UrlHandlerResult:
         try:
             out = self.get_parsed_response(task.url, task.handler)
             if task.handler.process_indefinitely:
@@ -160,25 +156,25 @@ class ConnectionSession(ActorBase):
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
-            _info = {**out, "proxy": self._proxy.host, "status": status}
-            logger.warning("Gave up", handler=task.handler_name, url=task.url, **_info)
+            _h = task.handler
+            self._log_miss("Gave Up", e, _h, _h.max_retries, status, task.url)
         return task.wrap_to_uhr(out, status)
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
-        for _ in range(handler.initiation_retries):
+        for att in range(handler.initiation_retries):
             try:
                 handler.start_session(self.session.driver)
                 self._initiated_handlers.add(handler.name)
                 return True
             except Exception as e:
-                logger.warning(
-                    "Failed initiating handler",
-                    handler_name=handler.name,
-                    **_parse_exception(e),
-                )
-                # TODO: might be overkill this
+                self._log_miss("Failed initiating handler", e, handler, att, "PRE", "")
                 self._restart()
                 time.sleep(handler.wait_on_initiation_fail)
+
+    def _log_miss(self, msg, content, handler: ANY_HANDLER_T, attempt, status, url):
+        out = _parse_exception(content)
+        _info = out | {"proxy": self._proxy.host, "status": status}
+        logger.warning(msg, handler=handler.name, url=url, attempt=attempt, **_info)
 
 
 class BrowserSession:
@@ -267,5 +263,5 @@ def get_actor_dict(handlers: Iterable[ANY_HANDLER_T]):
 
 
 def _parse_exception(e):
-    tbl = [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)]
-    return {"e_type": type(e).__name__, "e": str(e), "tb": tbl}
+    # tbl = [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)]
+    return {"e_type": type(e).__name__, "e_msg": str(e).split("\n")[0]}  # , "tb": tbl}
