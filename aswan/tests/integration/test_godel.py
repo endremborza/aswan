@@ -1,5 +1,6 @@
 import os
 from collections import Counter
+from functools import partial
 
 import pytest
 
@@ -16,7 +17,7 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
     test_project.register_module(ghandlers)
     test_project.run(test_run=True, keep_running=False, force_sync=True)
     depot = test_project.depot
-    _ghe = depot.get_handler_events
+    _ghe = partial(depot.get_handler_events, from_current=True)
 
     assert next(_ghe(ghandlers.LinkRoot)).status == aswan.Statuses.PROCESSED
 

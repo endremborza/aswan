@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from pathlib import Path
 
 import aswan
@@ -32,21 +33,22 @@ def test_coll_event_handling(test_project2: aswan.Project):
     )
 
     depot.current.integrate_events(coll_events)
+    _ghe = partial(depot.get_handler_events, from_current=True)
 
-    cevs1 = [*depot.get_handler_events(At, only_latest=True, only_successful=True)]
+    cevs1 = [*_ghe(At, only_latest=True, only_successful=True)]
 
     assert len(cevs1) == 1
     assert cevs1[0].cev.extend().output_file == "of2"
 
-    cevs2 = [*depot.get_handler_events(At, only_latest=False, only_successful=True)]
+    cevs2 = [*_ghe(At, only_latest=False, only_successful=True)]
     assert len(cevs2) == 2
     assert set([cev.cev.extend().output_file for cev in cevs2]) == {"of2", "of1"}
 
-    cevs3 = [*depot.get_handler_events(Bt, only_latest=True, only_successful=False)]
+    cevs3 = [*_ghe(Bt, only_latest=True, only_successful=False)]
     assert len(cevs3) == 2
     assert set([cev.cev.extend().output_file for cev in cevs3]) == {"of4", "of6"}
 
-    cevs4 = [*depot.get_handler_events(Bt, only_latest=False, only_successful=False)]
+    cevs4 = [*_ghe(Bt, only_latest=False, only_successful=False)]
     assert len(cevs4) == 3
     assert set([cev.cev.extend().output_file for cev in cevs4]) == {"of4", "of5", "of6"}
 

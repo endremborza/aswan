@@ -133,6 +133,8 @@ class Current:
     def process_results(self, result_queue: Iterable["UrlHandlerResult"]):
         all_events = []
         for uh_result in result_queue:
+            if isinstance(uh_result, Exception):
+                raise uh_result
             all_events += [uh_result.event, *uh_result.registered_links]
         self.integrate_events(all_events)
 
@@ -242,6 +244,7 @@ class AswanDepot:
         handler: Optional[Union[str, ANY_HANDLER_T]] = None,
         only_successful=True,
         only_latest=True,
+        from_current: bool = False,
         past_runs: Union[None, int, Iterable[str]] = None,
     ) -> Iterable["ParsedCollectionEvent"]:
 
@@ -259,12 +262,15 @@ class AswanDepot:
                 and ((not only_latest) or (ev.extend().url not in urls))
             )
 
-        if isinstance(past_runs, int):
+        if from_current:
+            event_iters = [map(partial_read_path, self.current.events.iterdir())]
+        elif isinstance(past_runs, int):
             event_iters = islice(self._iter_runs(), past_runs)
         elif past_runs is None:
-            event_iters = [map(partial_read_path, self.current.events.iterdir())]
+            event_iters = self._iter_runs()
         else:
             event_iters = map(self._get_run_events, past_runs)
+
         for ev_iter in chain(event_iters):
             for ev in filter(_filter, get_sorted_coll_events(ev_iter)):
                 yield ParsedCollectionEvent(ev, self.object_store)
