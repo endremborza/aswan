@@ -16,7 +16,7 @@ _cev = partial(
 )
 
 
-def xtest_push(env_auth_id: str, tmp_path: Path):
+def test_push(env_auth_id: str, tmp_path: Path):
     # if os.name == "nt": maybe not
     #    return  # SSH needs to point to linux
 
@@ -38,7 +38,7 @@ def xtest_push(env_auth_id: str, tmp_path: Path):
     assert sorted([su.url for su in depot.current.next_batch(3)]) == ["url1", "url2"]
 
 
-def xtest_pull(env_auth_id: str):
+def test_pull(env_auth_id: str):
     depot = AswanDepot("puller").setup(True)
     _of = depot.object_store.dump_bytes(b"XYZ")
     depot.current.integrate_events([_rev(), _rev(url="url2"), _cev(output_file=_of)])

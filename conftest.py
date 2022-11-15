@@ -142,6 +142,5 @@ def env_auth_id(private_key_path: Path, tmp_path: Path, server):
     os.environ[HEX_ENV] = ZimmAuth.dumps_dict(test_dic, pw)
     os.environ[DEFAULT_REMOTE_ENV_VAR] = _CNAME
     os.environ[DEPOT_ROOT_ENV_VAR] = local_path.as_posix()
-    if os.name == "nt":
-        os.environ[LOCAL_HOST_NAMES_ENV_VAR] = Server.host
+    os.environ[LOCAL_HOST_NAMES_ENV_VAR] = Server.host
     return _CNAME
