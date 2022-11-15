@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from zimmauth import ZimmAuth
 from zimmauth.core import LOCAL_HOST_NAMES_ENV_VAR
-from zimmauth.test_core import TEST_USER, Server, private_key_path, server
+from zimmauth.test_core import TEST_USER, Server, private_key_path
 
 from aswan import AswanDepot, Project
 from aswan.constants import DEPOT_ROOT_ENV_VAR
@@ -121,7 +121,7 @@ def test_proxy():
 
 
 @pytest.fixture
-def env_auth_id(private_key_path: Path, tmp_path: Path, server):
+def env_auth_id(private_key_path: Path, tmp_path: Path):
     rem_path, local_path = tmp_path / "remote", tmp_path / "local"
     rem_path.mkdir()
     local_path.mkdir()
@@ -130,7 +130,7 @@ def env_auth_id(private_key_path: Path, tmp_path: Path, server):
         "ssh": {
             "ssh-name-1": {
                 "host": Server.host,
-                "port": server.port,
+                "port": 22,
                 "user": TEST_USER,
                 "rsa_key": "rsa-key-name",
             }
