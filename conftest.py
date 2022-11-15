@@ -37,6 +37,7 @@ class AppRunner:
         for i in range(10):
             try:
                 requests.get(self.app_address, timeout=15)
+                assert self._process.is_alive()
                 break
             except requests.exceptions.ConnectionError as e:
                 if i > 5:
@@ -46,6 +47,8 @@ class AppRunner:
 
     def stop(self):
         self._process.kill()
+        self._process.join()
+        self._process.close()
 
     def _run_app(self):
         if not self._verbose:
