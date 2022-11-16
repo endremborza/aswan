@@ -35,9 +35,11 @@ class GetMain(aswan.RequestSoupHandler):
     _vtries = 0
 
     def parse(self, soup: BeautifulSoup):
+        self.register_links_to_handler([])
         return {"main": soup.find("b").text.strip()}
 
     def is_session_broken(self, result: Union[int, Exception]):
+        super().is_session_broken(result)
         if isinstance(result, int) and (result == 404) and (self._vtries < 1):
             self._vtries = 2
             return True
@@ -57,9 +59,6 @@ class Clicker(aswan.BrowserHandler):
             "field4": out_time,
             "field2": browser.find_element(By.ID, "field2").text,
         }
-
-    def is_session_broken(self, result: Exception):
-        return False
 
 
 class LinkRoot(aswan.RequestSoupHandler):

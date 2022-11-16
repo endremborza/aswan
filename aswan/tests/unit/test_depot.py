@@ -4,16 +4,13 @@ from pathlib import Path
 
 import aswan
 from aswan.constants import Statuses
-from aswan.depot import Run, Status
+from aswan.depot import Run
 from aswan.models import CollEvent
 
+from .test_metadata_handling import get_cev
 
-def test_coll_event_handling(test_project2: aswan.Project):
 
-    depot = test_project2.depot
-    depot.setup()
-    depot.set_as_current(Status())
-
+def test_coll_event_handling(test_depot: aswan.AswanDepot):
     class At(aswan.RequestHandler):
         pass
 
@@ -32,8 +29,8 @@ def test_coll_event_handling(test_project2: aswan.Project):
         ],
     )
 
-    depot.current.integrate_events(coll_events)
-    _ghe = partial(depot.get_handler_events, from_current=True)
+    test_depot.current.integrate_events(coll_events)
+    _ghe = partial(test_depot.get_handler_events, from_current=True)
 
     cevs1 = [*_ghe(At, only_latest=True, only_successful=True)]
 
@@ -51,6 +48,16 @@ def test_coll_event_handling(test_project2: aswan.Project):
     cevs4 = [*_ghe(Bt, only_latest=False, only_successful=False)]
     assert len(cevs4) == 3
     assert set([cev.cev.extend().output_file for cev in cevs4]) == {"of4", "of5", "of6"}
+
+
+def test_getting_latest_run(test_depot: aswan.AswanDepot):
+    test_depot.current.integrate_events([get_cev(output_file="of-x")])
+    test_depot.save_current()
+    test_depot.current.purge()
+    test_depot.init_w_complete()
+    test_depot.current.integrate_events([get_cev(output_file="of-y")])
+    test_depot.save_current()
+    assert next(test_depot.get_handler_events()).cev.output_file == "of-y"
 
 
 def test_depobj_init(tmp_path):

@@ -8,7 +8,6 @@ from .test_metadata_handling import get_cev
 
 def test_monitor_app(test_depot: AswanDepot):
 
-    test_depot.current.setup()
     test_depot.current.integrate_events([get_cev(), get_cev(timestamp=1200)])
 
     mapp = MonitorApp(test_depot)

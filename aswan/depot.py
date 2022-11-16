@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from functools import partial, wraps
 from hashlib import md5
 from heapq import heappop, heappush
-from itertools import chain, islice
+from itertools import islice
 from pathlib import Path
 from shutil import rmtree
 from subprocess import CalledProcessError, check_output
@@ -191,7 +191,7 @@ class AswanDepot:
     def get_complete_status(self) -> Status:
         # either an existing, a new or a blank status
         leaf = self._get_leaf()
-        missing_runs = self.get_all_run_ids() - leaf.get_full_run_tree(self.get_status)
+        missing_runs = self.get_missing_runs(leaf)
         if missing_runs:
             return self.integrate(leaf, missing_runs)
         return leaf
@@ -201,6 +201,9 @@ class AswanDepot:
 
     def get_all_run_ids(self):
         return set(map(Path.name.fget, self.runs_path.iterdir()))
+
+    def get_missing_runs(self, status: Status):
+        return self.get_all_run_ids() - status.get_full_run_tree(self.get_status)
 
     def set_as_current(self, status: Status):
         self.current.setup()
@@ -269,9 +272,9 @@ class AswanDepot:
         elif past_runs is None:
             event_iters = self._iter_runs()
         else:
-            event_iters = map(self._get_run_events, past_runs)
+            event_iters = map(self._get_run_events, sorted(past_runs, reverse=True))
 
-        for ev_iter in chain(event_iters):
+        for ev_iter in event_iters:
             for ev in filter(_filter, get_sorted_coll_events(ev_iter)):
                 yield ParsedCollectionEvent(ev, self.object_store)
                 if only_latest:
@@ -344,12 +347,21 @@ class AswanDepot:
         return self
 
     def _push(self, conn: "Connection"):
+        present = set([fp[2:] for fp in conn.run("find .", hide=True).stdout.split()])
         for dir_path in self._init_dirs:
             for subdir in dir_path.iterdir():
-                rel_path = subdir.relative_to(self.root)
-                conn.run(f"mkdir -p {rel_path.as_posix()}")
-                for elem in subdir.iterdir():
-                    self._conn_move(conn, elem, True)
+                self._push_subdir(subdir, conn, present)
+
+    def _push_subdir(self, subdir: Path, conn: "Connection", present: set):
+        rel_path = subdir.relative_to(self.root)
+        if rel_path.as_posix() not in present:
+            conn.run(f"mkdir -p {rel_path}")
+        for elem in subdir.iterdir():
+            rel_elem = rel_path / elem.name
+            if rel_elem.as_posix() in present:
+                continue
+            rem_abs_path = f"{conn.cwd}/{rel_elem}"
+            conn.put(elem.as_posix(), rem_abs_path)
 
     def _pull(self, conn: "Connection", complete: bool, post_status: Optional[str]):
         _ls = partial(self._remote_ls, conn)
@@ -404,18 +416,10 @@ class AswanDepot:
                 continue
             yield remote_name
 
-    def _conn_move(self, conn: "Connection", local_path: Path, put=False):
-        # TODO: do this for directories as this way it is waaay too slow
-        import invoke
-
+    def _conn_move(self, conn: "Connection", local_path: Path):
         rem_abs_path = f"{conn.cwd}/{local_path.relative_to(self.root)}"
-        if not put:
-            if not local_path.exists():
-                return conn.get(rem_abs_path, local_path.as_posix())
-        try:
-            conn.run(f"test -f {rem_abs_path}")
-        except invoke.UnexpectedExit:
-            conn.put(local_path.as_posix(), rem_abs_path)
+        if not local_path.exists():
+            return conn.get(rem_abs_path, local_path.as_posix())
 
 
 class ParsedCollectionEvent:

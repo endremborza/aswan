@@ -94,7 +94,7 @@ def dbsession(engine, tables):
 @pytest.fixture
 def test_depot(tmp_path):
     depot = AswanDepot("TD1", tmp_path)
-    depot.setup()
+    depot.setup(True)
     yield depot
     depot.purge()
 
