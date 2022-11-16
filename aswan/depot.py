@@ -301,7 +301,7 @@ class AswanDepot:
     def _iter_runs(self) -> Iterable[Iterable[CollEvent]]:
         runs = []
         for run_path in self.runs_path.glob("*"):
-            heappush(runs, (_start_timestamp_from_run_path(run_path), run_path.name))
+            heappush(runs, (-_start_timestamp_from_run_path(run_path), run_path.name))
         while runs:
             _, run_name = heappop(runs)
             yield self._get_run_events(run_name)
@@ -405,6 +405,7 @@ class AswanDepot:
             yield remote_name
 
     def _conn_move(self, conn: "Connection", local_path: Path, put=False):
+        # TODO: do this for directories as this way it is waaay too slow
         import invoke
 
         rem_abs_path = f"{conn.cwd}/{local_path.relative_to(self.root)}"
