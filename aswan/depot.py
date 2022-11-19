@@ -33,8 +33,6 @@ from .url_handler import ANY_HANDLER_T
 if TYPE_CHECKING:  # pragma: no cover
     from fabric import Connection
 
-    from .connection_session import UrlHandlerResult
-
 HEX_ENV = "ASWAN_AUTH_HEX"
 PW_ENV = "ASWAN_AUTH_PASS"
 
@@ -129,14 +127,6 @@ class Current:
     def any_in_progress(self):
         # TODO
         pass
-
-    def process_results(self, result_queue: Iterable["UrlHandlerResult"]):
-        all_events = []
-        for uh_result in result_queue:
-            if isinstance(uh_result, Exception):
-                raise uh_result
-            all_events += [uh_result.event, *uh_result.registered_links]
-        self.integrate_events(all_events)
 
     def integrate_events(self, events: Iterable[Union[CollEvent, RegEvent]]):
         self._wrap(integrate_events)(events, self.events)

@@ -46,7 +46,7 @@ def test_multi_objects(tmp_path, tmp_obj_store: ObjectStore):
     r2 = tmp_path / "os2"
     r2.mkdir()
     os2 = ObjectStore(r2)
-    para_names = parallel_map(os2.dump_json, objects)
+    para_names = list(parallel_map(os2.dump_json, objects))
     sync_names = [tmp_obj_store.dump_json(o) for o in objects]
     for name, obj in zip(sync_names, objects):
         assert obj == tmp_obj_store.read_json(name)

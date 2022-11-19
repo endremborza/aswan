@@ -1,11 +1,11 @@
 import sys
 import time
 from dataclasses import dataclass
+from functools import partial
 from typing import Iterable, List, Optional, Type
 
 import requests
 from atqo import ActorBase, SchedulerTask
-from atqo.utils import partial_cls
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
 from structlog import get_logger
@@ -244,8 +244,7 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_dict(handlers: Iterable[ANY_HANDLER_T]):
-    out = {}
+def get_actor_items(handlers: Iterable[ANY_HANDLER_T]):
     for handler in handlers:
         caps = handler.get_caps()
         full_kwargs = dict(proxy_cls=handler.proxy_cls)
@@ -257,9 +256,7 @@ def get_actor_dict(handlers: Iterable[ANY_HANDLER_T]):
             and handler.proxy.needs_auth
         ):
             raise RuntimeError("can't have auth (extension) in headless browser")
-        actor = partial_cls(ConnectionSession, **full_kwargs)
-        out[caps] = actor
-    return out
+        yield caps, partial(ConnectionSession, **full_kwargs)
 
 
 def _parse_exception(e):

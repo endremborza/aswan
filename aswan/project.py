@@ -6,7 +6,7 @@ from atqo import DEFAULT_DIST_API_KEY, DEFAULT_MULTI_API, Scheduler
 from structlog import get_logger
 
 from . import url_handler as urh
-from .connection_session import HandlingTask, get_actor_dict
+from .connection_session import HandlingTask, UrlHandlerResult, get_actor_items
 from .constants import Statuses
 from .depot import AswanDepot, Status
 from .models import RegEvent, SourceUrl
@@ -148,11 +148,14 @@ class Project:
         if force_sync:
             self.distributed_api = DEFAULT_DIST_API_KEY
         run_and_log_functions([*extra_prep, self._create_scheduler], batch="prep")
-        self._scheduler.process(
-            batch_producer=self._get_next_batch,
-            result_processor=self.depot.current.process_results,
-            min_queue_size=self.min_queue_size,
-        )
+        for res in self._scheduler.process(
+            batch_producer=self._get_next_batch, min_queue_size=self.min_queue_size
+        ):
+            if isinstance(res, Exception):
+                raise res
+            res: UrlHandlerResult
+            self.depot.current.integrate_events([res.event, *res.registered_links])
+
         run_and_log_functions([self._scheduler.join], batch="cleanup")
         self.distributed_api = _old_da
 
@@ -198,7 +201,7 @@ class Project:
 
     def _create_scheduler(self):
         self._scheduler = Scheduler(
-            actor_dict=get_actor_dict(self._handler_dic.values()),
+            actor_dict=dict(get_actor_items(self._handler_dic.values())),
             resource_limits=self.resource_limits,
             distributed_system=self.distributed_api,  # TODO move test to sync?
             verbose=self.debug,
