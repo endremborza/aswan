@@ -121,11 +121,6 @@ class Current:
         Base.metadata.create_all(self.engine)
         return self
 
-    def teardown(self):
-        was_set = self.engine is not None
-        self.engine = None
-        was_set
-
     def purge(self):
         if self.root.exists():
             rmtree(self.root)
@@ -270,14 +265,11 @@ class AswanDepot:
         else:
             event_iters = map(self._get_run_events, sorted(past_runs, reverse=True))
 
-        was = self.current.teardown()
         for ev_iter in event_iters:
             for ev in filter(_filter, get_sorted_coll_events(ev_iter)):
                 yield ParsedCollectionEvent(ev, self.object_store)
                 if only_latest:
                     urls.add(ev.url)
-        if was:
-            self.current.setup()
 
     def push(self, remote: Optional[str] = None):
         return self._conn_map(remote, self._push)
@@ -311,15 +303,11 @@ class AswanDepot:
     def _get_run_events(self, run_name, extend=False):
         with self._run_events_zip(run_name, "r") as zfp:
             for event in zfp.filelist:
-                _fun = partial(self._read_event_blob, run_name, event)
+                _fun = partial(_read_event_blob, self.runs_path, run_name, event)
                 _ev = partial_read(event.filename, _fun)
                 if extend:
                     _ev.extend()
                 yield _ev
-
-    def _read_event_blob(self, run_name, event_name):
-        with self._run_events_zip(run_name, "r") as zfp:
-            return zfp.read(event_name)
 
     def _save_status_from_current(self, current: Current, status: Status):
         status_dir = self.statuses_path / status.name
@@ -474,6 +462,11 @@ class _Chain:
         for child in self.child_lists[root_id]:
             self.get_furthest_leaf(child.name, dist + 1)
         return self.leaf_
+
+
+def _read_event_blob(root, dirname, event_name):
+    with _zipfile(root, dirname, EVENTS_ZIP, "r") as zfp:
+        return zfp.read(event_name)
 
 
 def _start_timestamp_from_run_path(p: Path):
