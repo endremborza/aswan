@@ -11,6 +11,17 @@ from aswan.utils import browser_wait
 from ..proxy_src import proxy_port, proxy_pw, proxy_user
 
 
+class TestLoad(aswan.RequestHandler):
+
+    test_urls = ["/test_page/Nonexistent"]
+
+    def load_cache(self, _):
+        raise ValueError("")
+
+    def is_session_broken(self, result: Union[int, Exception]):
+        return super().is_session_broken(result) and False
+
+
 class SimpleProxy(aswan.ProxyBase):
     expiration_secs = 0
     port_no = proxy_port
@@ -43,7 +54,6 @@ class GetMain(aswan.RequestSoupHandler):
         if isinstance(result, int) and (result == 404) and (self._vtries < 1):
             self._vtries = 2
             return True
-        return False
 
 
 class Clicker(aswan.BrowserHandler):
