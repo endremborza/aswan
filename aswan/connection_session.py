@@ -97,7 +97,7 @@ class ConnectionSession(ActorBase):
         try:
             cached_resp = task.handler.load_cache(task.url)
         except Exception as e:
-            logger.warn("error during cache loading", e=e, e_type=type(e))
+            logger.warning("error during cache loading", e=e, e_type=type(e))
             cached_resp = None
         if cached_resp is not None:
             status = (
