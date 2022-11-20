@@ -111,14 +111,20 @@ class Current:
             _p, [f"db.{DB_KIND}", "parent", "events", CONTEXT_YAML]
         )
         self.db_constr = f"{DB_KIND}:///{self.db_path.as_posix()}"
-        self.engine = db.create_engine(self.db_constr)
+        self.engine: db.engine.Engine = None
         self.next_batch = self._wrap(get_next_batch)
         self.reset_surls = self._wrap(reset_surls)
 
     def setup(self):
-        self.events.mkdir(parents=True)
+        self.engine = db.create_engine(self.db_constr)
+        self.events.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(self.engine)
         return self
+
+    def teardown(self):
+        was_set = self.engine is not None
+        self.engine = None
+        was_set
 
     def purge(self):
         if self.root.exists():
@@ -264,11 +270,14 @@ class AswanDepot:
         else:
             event_iters = map(self._get_run_events, sorted(past_runs, reverse=True))
 
+        was = self.current.teardown()
         for ev_iter in event_iters:
             for ev in filter(_filter, get_sorted_coll_events(ev_iter)):
                 yield ParsedCollectionEvent(ev, self.object_store)
                 if only_latest:
                     urls.add(ev.url)
+        if was:
+            self.current.setup()
 
     def push(self, remote: Optional[str] = None):
         return self._conn_map(remote, self._push)

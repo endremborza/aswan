@@ -2,6 +2,8 @@ import os
 from functools import partial
 from pathlib import Path
 
+from atqo import parallel_map
+
 import aswan
 from aswan.constants import Statuses
 from aswan.depot import Run
@@ -58,6 +60,15 @@ def test_getting_latest_run(test_depot: aswan.AswanDepot):
     test_depot.current.integrate_events([get_cev(output_file="of-y")])
     test_depot.save_current()
     assert next(test_depot.get_handler_events()).cev.output_file == "of-y"
+
+
+def test_parallel_proc(test_depot: aswan.AswanDepot):
+    test_depot.current.integrate_events([get_cev(output_file="of-x")])
+    test_depot.save_current()
+    lc = list(parallel_map(str, test_depot.get_handler_events(from_current=True)))
+    assert lc
+    lo = list(parallel_map(str, test_depot.get_handler_events()))
+    assert lo == lc
 
 
 def test_depobj_init(tmp_path):
