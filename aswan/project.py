@@ -31,8 +31,8 @@ class Project:
         self.distributed_api = distributed_api
         self.debug = debug
         self.max_displays = max_displays
-        self.max_cpu_use = int(max_cpu_use * 1000)
-        self.batch_size = min(self.max_cpu_use * 4, 60)
+        self.max_cpu_use = max_cpu_use
+        self.batch_size = max(int(self.max_cpu_use) * 16, 40)
         self.min_queue_size = self.batch_size // 2
 
         self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
@@ -111,21 +111,6 @@ class Project:
             if is_subclass(e, urh.UrlHandlerBase):
                 self.register_handler(e)
 
-    def start_monitor_process(self, port_no=6969):
-        # to avoid extra deps
-        from .monitor_app import run_monitor_app
-
-        self._monitor_app_process = Process(
-            target=run_monitor_app,
-            kwargs={"port_no": port_no, "depot_root": self.depot.root},
-        )
-        self._monitor_app_process.start()
-        logger.info(f" monitor app at: http://localhost:{port_no}")
-
-    def stop_monitor_process(self):
-        self._monitor_app_process.terminate()
-        self._monitor_app_process.join()
-
     @property
     def resource_limits(self):
         proxy_limits, handler_limits = {}, {}
@@ -136,7 +121,7 @@ class Project:
                 handler_limits[handler.name] = handler.max_in_parallel
         # TODO add option to alternate cpu use
         return {
-            REnum.mCPU: self.max_cpu_use,
+            REnum.mCPU: int(self.max_cpu_use) * 1000,
             REnum.DISPLAY: self.max_displays,
             **handler_limits,
             **proxy_limits,
