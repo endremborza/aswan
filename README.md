@@ -81,8 +81,8 @@ when starting a run:
 
 ## Pre v1.0 laundry list
 
-- parsing/connection error confusion
-  - also broken session thing
+- parallelize push / pull
+- parsing/connection/broken session error docs
 - transferring / ignoring cookies
 
 
