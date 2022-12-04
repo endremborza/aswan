@@ -397,9 +397,10 @@ class AswanDepot:
             _ls: List[str] = conn.run(f"ls {local_posix}", hide=True).stdout.split()
         except invoke.UnexpectedExit:
             _ls = []
+        local_set = set(dir_path.glob("*")) if dir_path.exists() else set()
         for remote_name in _ls:
-            local_dir = dir_path / remote_name
-            if only_remote and local_dir.exists():
+            # local_dir = dir_path / remote_name
+            if only_remote and ((dir_path / remote_name) in local_set):
                 continue
             yield remote_name
 
