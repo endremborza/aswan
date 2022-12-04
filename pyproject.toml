@@ -13,9 +13,10 @@ dependencies = [
     "sqlalchemy",
     "structlog",
     "pyyaml",
+    "typer",
     "atqo>=0.3.0"
 ]
-
+scripts = {aswan = "aswan:app"}
 [project.optional-dependencies]
 remote = ["zimmauth","fabric","toml"]
 monitor = ["pandas","dash","dash-bootstrap-components"]

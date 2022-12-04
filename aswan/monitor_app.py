@@ -1,9 +1,7 @@
-import os
-import sys
 from itertools import islice
-from pathlib import Path
 from time import time
 
+import typer
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
@@ -14,24 +12,20 @@ from .object_store import ObjectStore
 
 
 class MonitorApp:
-    def __init__(self, depot: AswanDepot, refresh_interval_secs=30, cev_limit=100):
+    def __init__(self, depot: AswanDepot, refresh_interval_secs=30):
         import dash_bootstrap_components as dbc
         import pandas as pd
         from dash import Dash, dash_table, dcc, html
         from dash.dependencies import Input, Output
 
+        sheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css", dbc.themes.BOOTSTRAP]
         self.DF = pd.DataFrame
         self.DashTable = dash_table.DataTable
         self.html = html
-        self.app = Dash(
-            __name__,
-            external_stylesheets=[
-                "https://codepen.io/chriddyp/pen/bWLwgP.css",
-                dbc.themes.BOOTSTRAP,
-            ],
-        )
+        self.app = Dash(__name__, external_stylesheets=sheets)
         self.depot = depot
-        self.cev_limit = cev_limit
+        self.depot.current.setup()
+        self.cev_limit = 100  # TODO: dynamic
         elems = [
             html.H4("Collection monitor"),
             dcc.Store(id="data-store", storage_type="memory"),
@@ -128,12 +122,16 @@ class MonitorApp:
         return self.html.Tr([*map(self.html.Td, [*tds, link])])
 
 
-def run_monitor_app(
-    depot_root: Path, port_no=6969, refresh_interval_secs=30, silent=True, debug=False
-):  # pragma: no cover
-    if silent:
-        sys.stdout = open(os.devnull, "w")
-        sys.stderr = open(os.devnull, "w")
-    MonitorApp(
-        AswanDepot(depot_root.name, depot_root.parent), refresh_interval_secs
-    ).app.run_server(port=port_no, debug=debug)
+app = typer.Typer()
+
+
+@app.command()
+def monitor(
+    project: str,
+    root: str = None,
+    port: int = 6969,
+    interval: int = 30,
+    debug: bool = False,
+):
+    depot = AswanDepot(project, root)
+    MonitorApp(depot, interval).app.run_server(port=port, debug=debug)

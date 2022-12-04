@@ -79,5 +79,3 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
 
     if os.name != "nt":
         test_project.depot.pull(env_auth_id)
-        test_project.start_monitor_process()
-        test_project.stop_monitor_process()

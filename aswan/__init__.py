@@ -4,6 +4,7 @@ from .connection_session import ConnectionSession
 from .constants import ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_WEEK, ONE_YEAR, Statuses
 from .depot import AswanDepot, ParsedCollectionEvent
 from .exceptions import BrokenSessionError, ConnectionError
+from .monitor_app import app
 from .object_store import ObjectStore
 from .project import Project
 from .security import ProxyAuth, ProxyBase
