@@ -22,8 +22,6 @@ Project
       ~Project.register_handler
       ~Project.register_module
       ~Project.run
-      ~Project.start_monitor_process
-      ~Project.stop_monitor_process
 
    .. rubric:: Attributes Documentation
 
@@ -37,5 +35,3 @@ Project
    .. automethod:: register_handler
    .. automethod:: register_module
    .. automethod:: run
-   .. automethod:: start_monitor_process
-   .. automethod:: stop_monitor_process
