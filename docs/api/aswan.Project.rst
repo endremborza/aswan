@@ -16,7 +16,6 @@ Project
 
    .. autosummary::
 
-      ~Project.cleanup_current_run
       ~Project.commit_current_run
       ~Project.continue_run
       ~Project.register_handler
@@ -29,7 +28,6 @@ Project
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: cleanup_current_run
    .. automethod:: commit_current_run
    .. automethod:: continue_run
    .. automethod:: register_handler
