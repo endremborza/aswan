@@ -2,14 +2,14 @@ from bs4 import BeautifulSoup
 
 import aswan.tests.godel_src.handlers as ghandlers
 from aswan import (
+    AswanDepot,
     BrokenSessionError,
     BrowserSoupHandler,
     RequestJsonHandler,
     RequestSoupHandler,
+    Statuses,
 )
 from aswan.connection_session import ConnectionSession, HandlingTask
-from aswan.constants import Statuses
-from aswan.object_store import ObjectStore
 from aswan.tests.godel_src.app import test_app_default_address
 
 _URL = f"{test_app_default_address}/test_page/Axiom.html"
@@ -19,12 +19,18 @@ _404_URL = f"{test_app_default_address}/test_page/Nonexistent"
 class _Setup:
     def __init__(self, tmp_path, Handler, url=_URL, browser=False) -> None:
 
-        self.ostr = ObjectStore(tmp_path)
-        self.cm = ConnectionSession(is_browser=browser)
-        self.task = HandlingTask(Handler(), url, self.ostr)
+        self.depot = AswanDepot("depot", tmp_path)
+        self.cm = ConnectionSession(is_browser=browser, depot_path=self.depot.root)
+        self.task = HandlingTask(Handler(), url)
+        self.ostr = self.cm.store
 
     def run(self):
         return self.cm.consume(self.task)
+
+    def get_res(self):
+        return next(
+            self.depot.get_handler_events(from_current=True, only_successful=False)
+        )
 
 
 def test_godel_defaults(tmp_path, godel_test_app):
@@ -34,12 +40,14 @@ def test_godel_defaults(tmp_path, godel_test_app):
 
     setup = _Setup(tmp_path, H)
 
-    uh_res = setup.cm.consume(setup.task)
+    setup.run()
     setup.cm.stop()
 
-    assert uh_res.event.url == _URL
-    assert uh_res.event.handler == "H"
-    assert uh_res.event.status == Statuses.PROCESSED
+    uh_res = setup.get_res()
+
+    assert uh_res.url == _URL
+    assert uh_res.handler_name == "H"
+    assert uh_res.status == Statuses.PROCESSED
 
 
 def test_session_breaking(tmp_path, godel_test_app):
@@ -55,11 +63,13 @@ def test_session_breaking(tmp_path, godel_test_app):
             return soup.find_all("a")
 
     setup = _Setup(tmp_path, BH, browser=True)
-    uh_res = setup.run()
-    assert uh_res.event.status == Statuses.SESSION_BROKEN
+    setup.run()
+    uh_res = setup.get_res()
+    assert uh_res.status == Statuses.SESSION_BROKEN
 
-    uh_res2 = setup.run()
-    assert uh_res2.event.status == Statuses.PROCESSED
+    setup.run()
+    uh_res2 = setup.get_res()
+    assert uh_res2.status == Statuses.PROCESSED
     setup.cm.stop()
 
 
@@ -70,17 +80,17 @@ def test_caching(tmp_path, godel_test_app):
                 return {"x": 742}
 
     setup = _Setup(tmp_path, H)
-    uhr = setup.run()
-
-    assert setup.ostr.read(uhr.event.output_file) == {"x": 742}
+    setup.run()
+    uhr = setup.get_res()
+    assert uhr.content == {"x": 742}
 
 
 def test_404_err(tmp_path, godel_test_app, test_proxy):
 
     s2 = _Setup(tmp_path, ghandlers.GetMain, _404_URL)
-    uhr = s2.run()
-
-    assert uhr.event.status == Statuses.SESSION_BROKEN
+    s2.run()
+    uhr = s2.get_res()
+    assert uhr.status == Statuses.SESSION_BROKEN
 
 
 def test_url_params(godel_test_app):

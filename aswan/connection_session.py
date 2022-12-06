@@ -2,7 +2,8 @@ import sys
 import time
 from dataclasses import dataclass
 from functools import partial
-from typing import Iterable, List, Optional, Type
+from pathlib import Path
+from typing import Any, Iterable, Optional
 
 import requests
 from atqo import ActorBase, SchedulerTask
@@ -11,9 +12,9 @@ from selenium.webdriver import Chrome
 from structlog import get_logger
 
 from .constants import HEADERS, Statuses
+from .depot import AswanDepot
 from .exceptions import BrokenSessionError, ConnectionError
 from .models import CollEvent, RegEvent
-from .object_store import ObjectStore
 from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase
 from .url_handler import ANY_HANDLER_T, RequestSoupHandler
@@ -31,7 +32,7 @@ DEFAULT_EXCEPTION_STATUS = Statuses.PARSING_ERROR
 @dataclass
 class UrlHandlerResult:
     event: CollEvent
-    registered_links: List[RegEvent]
+    registered_links: list[RegEvent]
 
 
 @dataclass
@@ -39,40 +40,31 @@ class HandlingTask:
 
     handler: ANY_HANDLER_T
     url: str
-    object_store: ObjectStore
 
     def get_scheduler_task(self) -> SchedulerTask:
         caps = self.handler.get_caps()
         return SchedulerTask(argument=self, requirements=caps)
 
-    def wrap_to_uhr(self, out, status):
-        return UrlHandlerResult(
-            event=CollEvent(
-                handler=self.handler_name,
-                url=self.url,
-                timestamp=int(time.time()),
-                output_file=self.object_store.dump(out) if out is not None else "",
-                status=status,
-            ),
-            registered_links=self.handler.pop_registered_links(),
-        )
-
-    @property
-    def handler_name(self):
-        return self.handler.name
-
 
 class ConnectionSession(ActorBase):
     def __init__(
         self,
+        depot_path: Optional[Path] = None,
         is_browser=False,
         headless=True,
         eager=False,
-        proxy_cls: Type[ProxyBase] = DEFAULT_PROXY,
+        proxy_cls: type[ProxyBase] = DEFAULT_PROXY,
     ):
         self.is_browser = is_browser
         self.eager = eager
         self._proxy = proxy_cls()
+        if depot_path is not None:
+            depot = AswanDepot(depot_path.name, depot_path.parent)
+            self.current = depot.current.setup()
+            self.store = depot.object_store
+        else:
+            self.current = None
+            self.store = None
 
         self.session = (
             BrowserSession(headless, self.eager)
@@ -84,8 +76,8 @@ class ConnectionSession(ActorBase):
         self._num_queries = 0
         self.session.start(self._proxy)
 
-    def consume(self, task: HandlingTask) -> UrlHandlerResult:
-        handler_name = task.handler_name
+    def consume(self, task: HandlingTask):
+        handler_name = task.handler.name
         if (handler_name in self._broken_handlers) or (
             task.handler.restart_session_after < self._num_queries
         ):
@@ -105,15 +97,15 @@ class ConnectionSession(ActorBase):
                 if task.handler.process_indefinitely
                 else Statuses.CACHE_LOADED
             )
-            return task.wrap_to_uhr(cached_resp, status)
-
-        task.handler.set_url(task.url)
-        time.sleep(task.handler.get_sleep_time())
-        uh_result = self._get_uh_result(task)
-        if uh_result.event.status == Statuses.SESSION_BROKEN:
-            self._broken_handlers.add(handler_name)
-        self._num_queries += 1
-        return uh_result
+            out = cached_resp
+        else:
+            task.handler.set_url(task.url)
+            time.sleep(task.handler.get_sleep_time())
+            out, status = self._get_out_and_status(task)
+            if status == Statuses.SESSION_BROKEN:
+                self._broken_handlers.add(handler_name)
+            self._num_queries += 1
+        self.proc_result(task, out, status)
 
     def stop(self):
         self.session.stop()
@@ -137,6 +129,16 @@ class ConnectionSession(ActorBase):
             raise ConnectionError(f"request resulted in error with status {content}")
         return handler.parse(handler.pre_parse(content))
 
+    def proc_result(self, task: HandlingTask, out: Any, status: str):
+        event = CollEvent(
+            handler=task.handler.name,
+            url=task.url,
+            timestamp=int(time.time()),
+            output_file=self.store.dump(out) if out is not None else "",
+            status=status,
+        )
+        self.current.integrate_events([event, *task.handler.pop_registered_links()])
+
     def _restart(self, new_proxy=True):
         self.session.stop()
         if new_proxy:
@@ -146,7 +148,7 @@ class ConnectionSession(ActorBase):
         self.session.start(self._proxy)
         self._num_queries = 0
 
-    def _get_uh_result(self, task: HandlingTask) -> UrlHandlerResult:
+    def _get_out_and_status(self, task: HandlingTask) -> tuple[Any, str]:
         try:
             out = self.get_parsed_response(task.url, task.handler)
             if task.handler.process_indefinitely:
@@ -158,7 +160,7 @@ class ConnectionSession(ActorBase):
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
             _h = task.handler
             self._log_miss("Gave Up", e, _h, _h.max_retries, status, task.url)
-        return task.wrap_to_uhr(out, status)
+        return out, status
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):
         for att in range(handler.initiation_retries):
@@ -244,10 +246,10 @@ cap_to_kwarg = {
 }
 
 
-def get_actor_items(handlers: Iterable[ANY_HANDLER_T]):
+def get_actor_items(handlers: Iterable[ANY_HANDLER_T], depot_path: Path):
     for handler in handlers:
         caps = handler.get_caps()
-        full_kwargs = dict(proxy_cls=handler.proxy_cls)
+        full_kwargs = dict(proxy_cls=handler.proxy_cls, depot_path=depot_path)
         for cap in caps:
             full_kwargs.update(cap_to_kwarg.get(cap, {}))
         if (

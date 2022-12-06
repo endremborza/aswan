@@ -5,10 +5,12 @@ import typer
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
-from .constants import Statuses
+from .constants import SUCCESS_STATUSES, Statuses
 from .depot import AswanDepot
 from .models import CollEvent, SourceUrl
 from .object_store import ObjectStore
+
+STATUS_MAP = {v: k for k, v in Statuses.__dict__.items() if not k.startswith("_")}
 
 
 class MonitorApp:
@@ -25,10 +27,18 @@ class MonitorApp:
         self.app = Dash(__name__, external_stylesheets=sheets)
         self.depot = depot
         self.depot.current.setup()
-        self.cev_limit = 100  # TODO: dynamic
         elems = [
-            html.H4("Collection monitor"),
+            html.H2("Collection monitor"),
             dcc.Store(id="data-store", storage_type="memory"),
+            dcc.Dropdown(
+                [
+                    {"value": i, "label": f"show last {i} events"}
+                    for i in [50, 100, 500, 1000, 5000]
+                ],
+                value=100,
+                id="cev-count",
+                style={"margin": "15px"},
+            ),
             html.Div(id="live-update-status"),
             html.Div(id="live-update-text", style={"padding": 30}),
             dcc.Interval(
@@ -41,7 +51,7 @@ class MonitorApp:
 
         self.app.callback(
             Output("data-store", "data"),
-            [Input("interval-component", "n_intervals")],
+            [Input("interval-component", "n_intervals"), Input("cev-count", "value")],
         )(self.update_store)
 
         self.app.callback(
@@ -59,7 +69,7 @@ class MonitorApp:
             out = ObjectStore(self.depot.object_store_path).read(file_id)
             return out if isinstance(out, dict) else {"list": out}
 
-    def update_store(self, _):
+    def update_store(self, _, cev_limit):
 
         # TODO: possibly read past runs
         pcevs = self.depot.get_handler_events(
@@ -74,12 +84,13 @@ class MonitorApp:
         session.close()
         surls = (
             self.DF([*source_urls_grouped], columns=["status", "handler", "count"])
+            .assign(status=lambda df: df["status"].replace(STATUS_MAP))
             .pivot_table(columns="status", index="handler", values="count")
             .reset_index()
             .fillna(0)
             .to_dict("records")
         )
-        cev_dicts = [pcev.cev.dict() for pcev in islice(pcevs, self.cev_limit)]
+        cev_dicts = [pcev.cev.dict() for pcev in islice(pcevs, int(cev_limit))]
         return {"source_url_rate": surls, "coll_events": cev_dicts}
 
     def update_metrics(self, store_data: dict):
@@ -88,21 +99,23 @@ class MonitorApp:
             return []
         cev_df = self.DF(coll_evs)
         vc = cev_df["status"].value_counts().to_dict()
-        upto_now = (time() - cev_df["timestamp"].min()) / 60
-        in_hour = vc.get(Statuses.PROCESSED, 0) * 60 / upto_now
+        since_last = (time() - cev_df["timestamp"].max()) / 60
+        time_past = (cev_df["timestamp"].max() - cev_df["timestamp"].min()) / 60
+        in_hour = sum([vc.get(s, 0) for s in SUCCESS_STATUSES]) * 60 / time_past
         todo_in_hours = vc.get(Statuses.TODO, 0) / (in_hour or 0.1)
+        pretty_vc = [
+            f'{" ".join(STATUS_MAP[k].split("_")).title()}: {v}' for k, v in vc.items()
+        ]
         info_lines = [
-            f"last {self.cev_limit} statuses: {vc}",
+            f"last {cev_df.shape[0]} events in {time_past:.2f} minutes of work",
+            f"statuses: {', '.join(pretty_vc)}",
+            f"{since_last:.2f} minutes since last event",
             f"estimate for 1 hour: {in_hour:.2f} - ({24 * in_hour:.2f} / day)",
             f"all todos in {todo_in_hours:.2f} hours",
         ]
-        return self.html.Div(
-            [
-                self.html.H3(f"Results in last {upto_now:.2f} minutes"),
-                self.html.Span([*map(self.html.P, info_lines)]),
-                self.html.Table([*map(self.cev_to_tr, coll_evs)]),
-            ]
-        )
+        info_span = self.html.Span([*map(self.html.H4, info_lines)])
+        full_table = self.html.Table([*map(self.cev_to_tr, coll_evs)])
+        return self.html.Div([info_span, full_table])
 
     def update_status(self, store_data: dict):
         surl_rates = store_data.get("source_url_rate", [])
@@ -113,7 +126,12 @@ class MonitorApp:
 
     def cev_to_tr(self, cev_d: dict):
         cev = CollEvent(**cev_d)
-        tds = [cev.iso, cev.handler, cev.status, self.html.A(cev.url, href=cev.url)]
+        tds = [
+            cev.iso,
+            cev.handler,
+            STATUS_MAP[cev.status],
+            self.html.A(cev.url, href=cev.url),
+        ]
         link = (
             self.html.A("file", href=f"/object_store/{cev.output_file}")
             if cev.output_file
@@ -132,6 +150,6 @@ def monitor(
     port: int = 6969,
     interval: int = 30,
     debug: bool = False,
-):
+):  # pragma: no cover
     depot = AswanDepot(project, root)
     MonitorApp(depot, interval).app.run_server(port=port, debug=debug)

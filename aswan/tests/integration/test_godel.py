@@ -30,7 +30,7 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
 
     with pytest.raises(PermissionError):
         test_project.commit_current_run()
-    test_project.cleanup_current_run()
+    test_project.depot.current.purge()
 
     test_project.run(
         urls_to_register={

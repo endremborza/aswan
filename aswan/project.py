@@ -6,7 +6,7 @@ from atqo import DEFAULT_DIST_API_KEY, DEFAULT_MULTI_API, Scheduler
 from structlog import get_logger
 
 from . import url_handler as urh
-from .connection_session import HandlingTask, UrlHandlerResult, get_actor_items
+from .connection_session import HandlingTask, get_actor_items
 from .constants import Statuses
 from .depot import AswanDepot, Status
 from .models import RegEvent, SourceUrl
@@ -24,6 +24,7 @@ class Project:
         distributed_api=DEFAULT_MULTI_API,
         max_displays: int = 4,
         max_cpu_use: float = float(cpu_count()),
+        batch_multiplier=16,
         debug=False,
     ):
 
@@ -32,7 +33,7 @@ class Project:
         self.debug = debug
         self.max_displays = max_displays
         self.max_cpu_use = max_cpu_use
-        self.batch_size = max(int(self.max_cpu_use) * 16, 40)
+        self.batch_size = max(int(self.max_cpu_use) * batch_multiplier, 40)
         self.min_queue_size = self.batch_size // 2
 
         self._handler_dic: Dict[str, urh.ANY_HANDLER_T] = {}
@@ -75,9 +76,6 @@ class Project:
         # TODO: check if commit hash is same?
 
         self.depot.save_current()
-        self.cleanup_current_run()
-
-    def cleanup_current_run(self):
         self.depot.current.purge()
 
     def continue_run(
@@ -97,6 +95,7 @@ class Project:
         }
         statuses = [s for s, b in bool_map.items() if b]
         prep = [partial(self.depot.current.reset_surls, statuses)]
+        self.depot.current.setup()
         self._run(force_sync, keep_running, prep)
 
     def register_handler(self, handler: Type[urh.ANY_HANDLER_T]):
@@ -138,8 +137,6 @@ class Project:
         ):
             if isinstance(res, Exception):
                 raise res
-            res: UrlHandlerResult
-            self.depot.current.integrate_events([res.event, *res.registered_links])
 
         run_and_log_functions([self._scheduler.join], batch="cleanup")
         self.distributed_api = _old_da
@@ -156,9 +153,7 @@ class Project:
     def _surls_to_tasks(self, surl_batch: List[SourceUrl]):
         return [
             HandlingTask(
-                handler=self._handler_dic[next_surl.handler],
-                url=next_surl.url,
-                object_store=self.depot.object_store,
+                handler=self._handler_dic[next_surl.handler], url=next_surl.url
             ).get_scheduler_task()
             for next_surl in surl_batch
         ]
@@ -186,7 +181,9 @@ class Project:
 
     def _create_scheduler(self):
         self._scheduler = Scheduler(
-            actor_dict=dict(get_actor_items(self._handler_dic.values())),
+            actor_dict=dict(
+                get_actor_items(self._handler_dic.values(), depot_path=self.depot.root)
+            ),
             resource_limits=self.resource_limits,
             distributed_system=self.distributed_api,  # TODO move test to sync?
             verbose=self.debug,

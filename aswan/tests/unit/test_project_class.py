@@ -23,3 +23,16 @@ def test_wrong_setup(test_project2: Project):
 
     with pytest.raises(RuntimeError):
         test_project2._create_scheduler()
+
+
+class CLH(RequestHandler):
+    def load_cache(self, url):  # pragma: no cover
+        return "thing"
+
+
+def test_overflow(test_project2: Project):
+    test_project2.debug = True
+    test_project2.max_cpu_use = 2
+    test_project2.batch_size = 5
+    test_project2.min_queue_size = 3
+    test_project2.run(urls_to_register={CLH: list(map(str, range(30)))})
