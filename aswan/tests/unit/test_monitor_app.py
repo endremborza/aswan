@@ -12,7 +12,7 @@ def test_monitor_app(test_depot: AswanDepot):
 
     mapp = MonitorApp(test_depot)
 
-    store = mapp.update_store(0)
+    store = mapp.update_store(0, 10)
     assert json.dumps(store)
     elems = mapp.update_metrics(store)
     assert elems
