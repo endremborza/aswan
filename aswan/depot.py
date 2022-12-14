@@ -80,8 +80,11 @@ class Status(_DepotObj):
 
     def get_full_run_tree(self, status_finder: Callable[[str], "Status"]):
         out = set(self.integrated_runs)
-        if self.parent:
-            out |= status_finder(self.parent).get_full_run_tree(status_finder)
+        parent = self.parent
+        while parent:
+            parent_status = status_finder(parent)
+            out |= set(parent_status.integrated_runs)
+            parent = parent_status.parent
         return out
 
     @property
