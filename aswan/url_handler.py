@@ -5,14 +5,15 @@ from urllib.parse import urljoin
 
 import requests
 from atqo import Capability, CapabilitySet
+from bs4 import BeautifulSoup, Tag
 from structlog import get_logger
 
 from .models import RegEvent
 from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase
+from .utils import add_url_params
 
 if TYPE_CHECKING:
-    from bs4 import BeautifulSoup  # pragma: no cover
     from selenium.webdriver import Chrome  # pragma: no cover
 
 logger = get_logger()
@@ -29,8 +30,6 @@ class UrlHandlerBase:
     wait_on_initiation_fail: int = 20
     restart_session_after: int = 50
     process_indefinitely: bool = False
-    # TODO: make ignore/transfer cookies possible
-    # additional header options too
 
     def __init__(self):
         self.proxy = self.proxy_cls()
@@ -63,6 +62,13 @@ class UrlHandlerBase:
             for link in links
         ]
 
+    def register_url_with_params(self, params: dict):
+        parsed_params = {k: v for k, v in params.items() if v}
+        if not parsed_params:
+            return
+        next_url = add_url_params(self._url, parsed_params)
+        self.register_links_to_handler([next_url])
+
     def pop_registered_links(self) -> List["RegEvent"]:
         out = self._registered_links
         self._registered_links = []
@@ -85,6 +91,8 @@ class UrlHandlerBase:
 
     @classmethod
     def extend_link(cls, link: str) -> str:
+        if isinstance(link, Tag):
+            link = link["href"]
         return urljoin(cls.url_root, link)
 
     @property
@@ -105,7 +113,7 @@ class RequestHandler(UrlHandlerBase):
         return blob
 
     def handle_driver(self, session: "requests.Session"):
-        """handle session every time before getting url"""
+        """runs before get. can set/update cookies/headers"""
 
     def start_session(self, session: "requests.Session"):
         """starts session if no browser needed"""
@@ -127,7 +135,7 @@ class BrowserHandler(UrlHandlerBase):
         return source
 
     def handle_driver(self, driver: "Chrome"):
-        """if returns something, that is forwarded to parse"""
+        """runs after get. if returns something, that is forwarded to parse"""
 
     def start_session(self, browser: "Chrome"):
         """start session if browser is needed"""
