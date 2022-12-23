@@ -35,7 +35,9 @@ def test_push(env_auth_id: str, tmp_path: Path):
     depot.current.purge()
     depot.set_as_current(depot.get_complete_status())
 
-    assert sorted([su.url for su in depot.current.next_batch(3)]) == ["url1", "url2"]
+    assert sorted(
+        [su.url for su in depot.current.next_batch(3, to_processing=False)]
+    ) == ["url1", "url2"]
 
 
 def test_pull(env_auth_id: str):
@@ -67,3 +69,8 @@ def test_pull(env_auth_id: str):
         next(depot.object_store_path.iterdir()).name
         == _of[: depot.object_store.prefix_chars]
     )
+
+
+def test_pull_nothing(env_auth_id: str):
+    depot = AswanDepot("empty-pull").setup()
+    depot.pull()

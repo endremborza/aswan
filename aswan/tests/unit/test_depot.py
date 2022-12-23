@@ -6,7 +6,7 @@ from atqo import parallel_map
 
 import aswan
 from aswan.constants import Statuses
-from aswan.depot import Run
+from aswan.depot.base import Run
 from aswan.models import CollEvent
 
 from .test_metadata_handling import get_cev

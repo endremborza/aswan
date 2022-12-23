@@ -80,12 +80,11 @@ class LinkRoot(aswan.RequestSoupHandler):
 
     def parse(self, soup: BeautifulSoup):
         for a in soup.find_all("a"):
-            link = a["href"]
             if a.get("id", "") == "interactive":
                 _h = Clicker
             else:
                 _h = GetMain
-            self.register_links_to_handler([link], _h)
+            self.register_links_to_handler([a], _h)
 
     def start_session(self, session):
         if self._init_failer:

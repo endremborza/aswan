@@ -27,9 +27,9 @@ class _Setup:
     def run(self):
         return self.cm.consume(self.task)
 
-    def get_res(self):
+    def get_res(self, succ=False):
         return next(
-            self.depot.get_handler_events(from_current=True, only_successful=False)
+            self.depot.get_handler_events(from_current=True, only_successful=succ)
         )
 
 
@@ -68,7 +68,7 @@ def test_session_breaking(tmp_path, godel_test_app):
     assert uh_res.status == Statuses.SESSION_BROKEN
 
     setup.run()
-    uh_res2 = setup.get_res()
+    uh_res2 = setup.get_res(succ=True)
     assert uh_res2.status == Statuses.PROCESSED
     setup.cm.stop()
 

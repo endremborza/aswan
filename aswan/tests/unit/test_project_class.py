@@ -1,6 +1,7 @@
 import pytest
 
 from aswan import Project
+from aswan.models import RegEvent
 from aswan.tests.godel_src.handlers import AuthedProxy
 from aswan.url_handler import BrowserHandler, RequestHandler
 
@@ -36,3 +37,11 @@ def test_overflow(test_project2: Project):
     test_project2.batch_size = 5
     test_project2.min_queue_size = 3
     test_project2.run(urls_to_register={CLH: list(map(str, range(30)))})
+
+
+def test_commit_refuse(test_project2: Project):
+    depot = test_project2.depot.setup(init=True)
+    depot.current.integrate_events([RegEvent("link-1", "H")])
+    depot.current.next_batch(2)
+    with pytest.raises(ValueError):
+        test_project2.commit_current_run()

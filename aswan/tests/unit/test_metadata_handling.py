@@ -43,7 +43,7 @@ def test_batch(dbsession):
     dbsession.add(get_surl(url="link-4", current_status=Statuses.PARSING_ERROR))
     dbsession.commit()
 
-    batch = get_next_batch(dbsession, 10)
+    batch = get_next_batch(dbsession, 10, to_processing=False)
     assert len(batch) == 2
     assert sorted([Statuses.TODO, Statuses.SESSION_BROKEN]) == sorted(
         [su.current_status for su in batch]

@@ -2,15 +2,17 @@ import os
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from requests.utils import default_headers
 
 import aswan
-from aswan.constants import DEFAULT_REMOTE_ENV_VAR, DEPOT_ROOT_ENV_VAR
+from aswan.constants import DEPOT_ROOT_ENV_VAR
 from aswan.simplified_functions import get_json, get_soup, run_simple_project
 from aswan.tests.godel_src.app import test_app_default_address
 
 
 def test_get_soup(godel_test_app):
-    soup = get_soup(f"{test_app_default_address}/test_page/godel_wiki.html")
+    h = default_headers()
+    soup = get_soup(f"{test_app_default_address}/test_page/godel_wiki.html", headers=h)
     assert isinstance(soup, BeautifulSoup)
     assert soup.find("a").text == "axiomatic"
 
@@ -21,10 +23,9 @@ def test_get_json(godel_test_app):
     assert d["A"] == 10
 
 
-def test_project_run(env_auth_id: str, godel_test_app, tmp_path: Path):
+def test_project_run(godel_env: str, tmp_path: Path):
 
     os.environ[DEPOT_ROOT_ENV_VAR] = tmp_path.as_posix()
-    os.environ[DEFAULT_REMOTE_ENV_VAR] = env_auth_id
 
     do_pushing = os.name != "nt"
 
@@ -39,7 +40,7 @@ def test_project_run(env_auth_id: str, godel_test_app, tmp_path: Path):
         return
     project = aswan.Project("simp-test", local_root=tmp_path / "other-thing")
 
-    project.depot.pull(env_auth_id, True)
+    project.depot.pull(godel_env, True)
     project.depot.setup(True)
 
     axiom_res = next(project.depot.get_handler_events(past_runs=1))
