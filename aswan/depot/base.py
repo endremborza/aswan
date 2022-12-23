@@ -1,4 +1,5 @@
 import os
+import pickle
 import sys
 import time
 import zipfile
@@ -13,28 +14,27 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import CalledProcessError, check_output
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Optional, Union
+from typing import Iterable, Optional, Union
 
 import sqlalchemy as db
 import yaml
 from sqlalchemy.orm import Session, sessionmaker
 
-from .constants import (
+from ..constants import (
     DEFAULT_DEPOT_ROOT,
-    DEFAULT_REMOTE_ENV_VAR,
     DEPOT_ROOT_ENV_VAR,
     SUCCESS_STATUSES,
+    Statuses,
 )
-from .metadata_handling import get_next_batch, integrate_events, reset_surls
-from .models import Base, CollEvent, RegEvent, partial_read, partial_read_path
-from .object_store import ObjectStore
-from .url_handler import ANY_HANDLER_T
-
-if TYPE_CHECKING:  # pragma: no cover
-    from fabric import Connection
-
-HEX_ENV = "ASWAN_AUTH_HEX"
-PW_ENV = "ASWAN_AUTH_PASS"
+from ..metadata_handling import (
+    get_grouped_surls,
+    get_next_batch,
+    integrate_events,
+    reset_surls,
+)
+from ..models import Base, CollEvent, RegEvent, partial_read, partial_read_path
+from ..object_store import ObjectStore
+from ..url_handler import ANY_HANDLER_T
 
 DB_KIND = "sqlite"  # :///
 COMPRESS = zipfile.ZIP_DEFLATED
@@ -65,27 +65,21 @@ def _hash_str(s: str):
 
 
 class _DepotObj:
+
+    __path = CONTEXT_YAML
+
     @classmethod
     def read(cls, dir_path: Path):
-        return cls(**yaml.safe_load((dir_path / CONTEXT_YAML).read_text()))
+        return cls(**yaml.safe_load((dir_path / cls.__path).read_text()))
 
     def dump(self, dir_path: Path):
-        (dir_path / CONTEXT_YAML).write_text(yaml.dump(asdict(self)))
+        (dir_path / self.__path).write_text(yaml.dump(asdict(self)))
 
 
 @dataclass
 class Status(_DepotObj):
     parent: Optional[str] = None
-    integrated_runs: List[str] = field(default_factory=list)
-
-    def get_full_run_tree(self, status_finder: Callable[[str], "Status"]):
-        out = set(self.integrated_runs)
-        parent = self.parent
-        while parent:
-            parent_status = status_finder(parent)
-            out |= set(parent_status.integrated_runs)
-            parent = parent_status.parent
-        return out
+    integrated_runs: list[str] = field(default_factory=list)
 
     @property
     def name(self):
@@ -100,8 +94,31 @@ class Status(_DepotObj):
 @dataclass
 class Run(_DepotObj):
     commit_hash: str = field(default_factory=_get_git_hash)
-    pip_freeze: List[str] = field(default_factory=_pip_freeze)
+    pip_freeze: list[str] = field(default_factory=_pip_freeze)
     start_timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class StatusCache:
+    statuses: dict[str, Status] = field(default_factory=dict)
+    parent_keys: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+
+    def add(self, status: Status):
+        self.statuses[status.name] = status
+        self.parent_keys[status.parent].add(status.name)
+
+    def merge(self, other: "StatusCache"):
+        self.statuses.update(other.statuses)
+        for k, v in other.parent_keys.items():
+            self.parent_keys[k].update(v)
+        return self
+
+    @classmethod
+    def read(cls, path: Path):
+        return pickle.loads(path.read_bytes()) if path.exists() else cls()
+
+    def dump(self, path: Path):
+        path.write_bytes(pickle.dumps(self))
 
 
 class Current:
@@ -128,9 +145,17 @@ class Current:
         if self.root.exists():
             rmtree(self.root)
 
+    def get_parent(self):
+        try:
+            return self.parent.read_text()
+        except FileNotFoundError:
+            return None
+
     def any_in_progress(self):
-        # TODO
-        pass
+        with self._get_session() as session:
+            for status, _, count in get_grouped_surls(session):
+                if status == Statuses.PROCESSING:
+                    return count > 0
 
     def integrate_events(self, events: Iterable[Union[CollEvent, RegEvent]]):
         self._wrap(integrate_events)(events, self.events)
@@ -157,7 +182,7 @@ class Current:
         return f
 
 
-class AswanDepot:
+class DepotBase:
     def __init__(self, name: str, local_root: Optional[Path] = None) -> None:
         self.name = name
         self.root = (
@@ -169,6 +194,8 @@ class AswanDepot:
         self.statuses_path = self.root / "statuses"
         self.runs_path = self.root / "runs"
         self.current = Current(self.root / "current-run")
+        self._cache_path = self.root / "status-cache.pkl"
+        self._status_cache = self._load_status_cache()
         self._init_dirs = [self.runs_path, self.statuses_path, self.object_store_path]
 
     def setup(self, init=False):
@@ -178,26 +205,32 @@ class AswanDepot:
             self.init_w_complete()
         return self
 
+    def purge(self):
+        if self.root.exists():
+            rmtree(self.root)
+        return self
+
     def init_w_complete(self):
         self.set_as_current(self.get_complete_status())
         return self
 
     def get_complete_status(self) -> Status:
         # either an existing, a new or a blank status
-        leaf = self._get_leaf()
-        missing_runs = self.get_missing_runs(leaf)
+        leaf, leaf_tree = self._get_leaf()
+        missing_runs = self.get_all_run_ids() - leaf_tree
         if missing_runs:
             return self.integrate(leaf, missing_runs)
         return leaf
 
     def get_status(self, status_name):
-        return Status.read(self.statuses_path / status_name)
+        status = self._status_cache.statuses.get(status_name)
+        if status is None:
+            status = Status.read(self.statuses_path / status_name)
+            self._status_cache.add(status)
+        return status
 
     def get_all_run_ids(self):
         return set(map(Path.name.fget, self.runs_path.iterdir()))
-
-    def get_missing_runs(self, status: Status):
-        return self.get_all_run_ids() - status.get_full_run_tree(self.get_status)
 
     def set_as_current(self, status: Status):
         self.current.setup()
@@ -228,12 +261,7 @@ class AswanDepot:
             for ev_path in self.current.events.iterdir():
                 zfp.write(ev_path, ev_path.name)
         Run.read(self.current.root).dump(run_dir)
-
-        try:
-            parent = self.current.parent.read_text()
-        except FileNotFoundError:
-            parent = None
-        status = Status(parent, [run_name])
+        status = Status(self.current.get_parent(), [run_name])
         return self._save_status_from_current(self.current, status)
 
     def get_handler_events(
@@ -274,26 +302,31 @@ class AswanDepot:
                 if only_latest:
                     urls.add(ev.url)
 
-    def push(self, remote: Optional[str] = None):
-        return self._conn_map(remote, self._push)
-
-    def pull(self, remote: Optional[str] = None, complete=False, post_status=None):
-        return self._conn_map(
-            remote, self._pull, complete=complete, post_status=post_status
-        )
-
-    def purge(self):
-        if self.root.exists():
-            rmtree(self.root)
-        return self
-
     def _get_leaf(self):
-        by_name: Dict[str, Status] = {None: Status()}
-        children: Dict[str, List[Status]] = defaultdict(list)
-        for status in map(Status.read, self.statuses_path.iterdir()):
-            by_name[status.name] = status
-            children[status.parent].append(status)
-        return _Chain(children, by_name).get_furthest_leaf(None)
+        # just one that has no children
+        # and has the most runs in its tree
+        most_runs = 0
+        leaf, leaf_tree = Status(), set()
+        for status_path in self.statuses_path.iterdir():
+            status_name = status_path.name
+            candidate = self.get_status(status_name)
+            if self._status_cache.parent_keys[status_name]:
+                continue
+            candidate_tree = self._get_full_run_tree(candidate)
+            _run_count = len(candidate_tree)
+            if _run_count >= most_runs:
+                leaf, leaf_tree = candidate, candidate_tree
+                most_runs = _run_count
+        return leaf, leaf_tree
+
+    def _get_full_run_tree(self, status: Status) -> set[str]:
+        out = set(status.integrated_runs)
+        parent = status.parent
+        while parent:
+            parent_status = self.get_status(parent)
+            out |= set(parent_status.integrated_runs)
+            parent = parent_status.parent
+        return out
 
     def _iter_runs(self) -> Iterable[Iterable[CollEvent]]:
         runs = []
@@ -318,6 +351,7 @@ class AswanDepot:
         status.dump(status_dir)
         with self._status_db_zip(status.name, "w") as zfp:
             zfp.write(current.db_path, current.db_path.name)
+        self._status_cache.add(status)
         return status
 
     def _status_db_zip(self, status_name, mode):
@@ -326,91 +360,8 @@ class AswanDepot:
     def _run_events_zip(self, run_name, mode):
         return _zipfile(self.runs_path, run_name, EVENTS_ZIP, mode)
 
-    def _conn_map(self, remote, fun, **kwargs):
-        remote_name = (
-            remote if isinstance(remote, str) else os.environ[DEFAULT_REMOTE_ENV_VAR]
-        )
-        with get_remote(remote_name) as conn:
-            conn.run(f"mkdir -p {self.name}")
-            with conn.cd(self.name):
-                fun(conn, **kwargs)
-        return self
-
-    def _push(self, conn: "Connection"):
-        present = set([fp[2:] for fp in conn.run("find .", hide=True).stdout.split()])
-        for dir_path in self._init_dirs:
-            for subdir in dir_path.iterdir():
-                self._push_subdir(subdir, conn, present)
-
-    def _push_subdir(self, subdir: Path, conn: "Connection", present: set):
-        rel_path = subdir.relative_to(self.root)
-        if rel_path.as_posix() not in present:
-            conn.run(f"mkdir -p {rel_path}")
-        for elem in subdir.iterdir():
-            rel_elem = rel_path / elem.name
-            if rel_elem.as_posix() in present:
-                continue
-            rem_abs_path = f"{conn.cwd}/{rel_elem}"
-            conn.put(elem.as_posix(), rem_abs_path)
-
-    def _pull(self, conn: "Connection", complete: bool, post_status: Optional[str]):
-        _ls = partial(self._remote_ls, conn)
-        _mv = partial(self._conn_move, conn)
-        remote_statuses = list(_ls(self.statuses_path))
-        remote_runs = set(_ls(self.runs_path))
-        for rem_status in remote_statuses:
-            _mv(self.statuses_path / rem_status / CONTEXT_YAML)
-        leaf = self._get_leaf()
-        status_dbs_to_pull = set()
-        if complete:
-            status_dbs_to_pull = remote_statuses
-        elif leaf.name in remote_statuses:
-            status_dbs_to_pull.add(leaf.name)
-
-        runs_to_pull = remote_runs - leaf.get_full_run_tree(self.get_status)
-        if post_status is not None:
-            break_status = self.get_status(post_status)
-            runs_to_pull = remote_runs - break_status.get_full_run_tree(self.get_status)
-        elif complete:
-            runs_to_pull = remote_runs
-
-        for status in status_dbs_to_pull:
-            _mv(self.statuses_path / status / STATUS_DB_ZIP)
-        for run in runs_to_pull:
-            _mv(self.runs_path / run / EVENTS_ZIP)
-        needed_objects = None
-        if post_status is not None:
-            pcevs = self.get_handler_events(only_latest=False, past_runs=runs_to_pull)
-            needed_objects = set([pcev.cev.extend().output_file for pcev in pcevs])
-
-        if (not complete) and (post_status is None):
-            return
-
-        for obj_dir in _ls(self.object_store_path, False):
-            for obj_file in _ls(self.object_store_path / obj_dir):
-                if (not complete) and (obj_file not in needed_objects):
-                    continue
-                _mv(self.object_store_path / obj_dir / obj_file)
-
-    def _remote_ls(self, conn, dir_path: Path, only_remote=True) -> List[str]:
-        import invoke
-
-        local_posix = dir_path.relative_to(self.root).as_posix()
-        try:
-            _ls: List[str] = conn.run(f"ls {local_posix}", hide=True).stdout.split()
-        except invoke.UnexpectedExit:
-            _ls = []
-        local_set = set(dir_path.glob("*")) if dir_path.exists() else set()
-        for remote_name in _ls:
-            # local_dir = dir_path / remote_name
-            if only_remote and ((dir_path / remote_name) in local_set):
-                continue
-            yield remote_name
-
-    def _conn_move(self, conn: "Connection", local_path: Path):
-        rem_abs_path = f"{conn.cwd}/{local_path.relative_to(self.root)}"
-        if not local_path.exists():
-            return conn.get(rem_abs_path, local_path.as_posix())
+    def _load_status_cache(self) -> StatusCache:
+        return StatusCache.read(self._cache_path)
 
 
 class ParsedCollectionEvent:
@@ -444,28 +395,6 @@ def get_sorted_coll_events(event_iterator: Iterable) -> Iterable[CollEvent]:
             heappush(coll_evs, ev)
     while coll_evs:
         yield heappop(coll_evs)
-
-
-def get_remote(remote_name: str):
-    from zimmauth import ZimmAuth
-
-    return ZimmAuth.from_env(HEX_ENV, PW_ENV).get_fabric_connection(remote_name)
-
-
-@dataclass
-class _Chain:
-    child_lists: Dict[str, List[Status]]
-    nodes: Dict[str, Status]
-    leaf_: Status = None
-    max_dist_: int = 0
-
-    def get_furthest_leaf(self, root_id, dist=0) -> Status:
-        if dist >= self.max_dist_:
-            self.max_dist_ = dist
-            self.leaf_ = self.nodes[root_id]
-        for child in self.child_lists[root_id]:
-            self.get_furthest_leaf(child.name, dist + 1)
-        return self.leaf_
 
 
 def _read_event_blob(root, dirname, event_name):
