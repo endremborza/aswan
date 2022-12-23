@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+url: https://github.com/endremborza/aswan
+authors:
+- family-names: Borza
+  given-names: Endre Márk
+  orcid: https://orcid.org/0000-0002-8804-4520
+title: endremborza/aswan
