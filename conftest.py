@@ -14,8 +14,7 @@ from zimmauth.core import LOCAL_HOST_NAMES_ENV_VAR
 from zimmauth.test_core import TEST_USER, Server, private_key_path
 
 from aswan import AswanDepot, Project
-from aswan.constants import DEPOT_ROOT_ENV_VAR
-from aswan.depot import DEFAULT_REMOTE_ENV_VAR, HEX_ENV, PW_ENV
+from aswan.constants import DEFAULT_REMOTE_ENV_VAR, DEPOT_ROOT_ENV_VAR, HEX_ENV, PW_ENV
 from aswan.models import Base
 from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
 from aswan.tests.proxy_src import proxy_app_creator, proxy_port
@@ -147,3 +146,8 @@ def env_auth_id(private_key_path: Path, tmp_path: Path):
     os.environ[DEPOT_ROOT_ENV_VAR] = local_path.as_posix()
     os.environ[LOCAL_HOST_NAMES_ENV_VAR] = Server.host
     return _CNAME
+
+
+@pytest.fixture
+def godel_env(godel_test_app, env_auth_id):
+    return env_auth_id
