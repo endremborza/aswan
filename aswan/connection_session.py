@@ -110,7 +110,9 @@ class ConnectionSession(ActorBase):
     def stop(self):
         self.session.stop()
 
-    def get_parsed_response(self, url, handler=RequestSoupHandler(), params=None):
+    def get_parsed_response(
+        self, url, handler=RequestSoupHandler(), params: Optional[dict] = None
+    ):
         if params:
             url = add_url_params(url, params)
         for attempt in range(handler.max_retries):
@@ -225,7 +227,7 @@ class RequestSession:
 
     def start(self, proxy: ProxyBase):
         self.driver = requests.Session()
-        self.driver.headers.update(HEADERS)  # TODO custom headers
+        self.driver.headers.update(HEADERS)
         self.driver.proxies.update(proxy.get_requests_dict())
 
     def stop(self):
