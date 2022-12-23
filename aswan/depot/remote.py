@@ -100,7 +100,8 @@ class RemoteMixin(DepotBase):
 
         try:
             conn.run(f"test -f {self._cache_path.name}")
-            conn.get(self._cache_path.name, tmp_path.as_posix())
+            rem_path = f"{conn.cwd}/{self._cache_path.name}"
+            conn.get(rem_path, tmp_path.as_posix())
         except invoke.UnexpectedExit:
             pass
 
