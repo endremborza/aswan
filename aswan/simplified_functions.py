@@ -6,8 +6,12 @@ from .connection_session import ConnectionSession
 from .project import Project
 
 
-def get_soup(url: str, params: Optional[dict] = None, browser=False, headless=True):
+def get_soup(
+    url: str, params: Optional[dict] = None, browser=False, headless=True, headers=None
+):
     cs = ConnectionSession(is_browser=browser, headless=headless)
+    if headers and not browser:
+        cs.session.driver.headers = headers
     out = cs.get_parsed_response(url, params=params)
     cs.stop()
     return out
