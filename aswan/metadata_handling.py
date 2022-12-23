@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial
 from typing import Iterable, List, Union
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import and_
 
@@ -34,7 +35,7 @@ def update_sources(session: Session, handler: str, urls: Iterable[str], status):
 
 
 def get_next_batch(
-    session: Session, size: int, to_processing=False, parser=list
+    session: Session, size: int, to_processing=True, parser=list
 ) -> List[SourceUrl]:
     to_try = [Statuses.TODO, Statuses.SESSION_BROKEN]
     query = (
@@ -49,6 +50,14 @@ def get_next_batch(
             surl.current_status = Statuses.PROCESSING
         session.commit()
     return parser(surls)
+
+
+def get_grouped_surls(session: Session):
+    return (
+        session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
+        .group_by(SourceUrl.current_status, SourceUrl.handler)
+        .all()
+    )
 
 
 def reset_surls(session: Session, statuses):

@@ -2,12 +2,12 @@ from itertools import islice
 from time import time
 
 import typer
-from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
 from .constants import SUCCESS_STATUSES, Statuses
 from .depot import AswanDepot
-from .models import CollEvent, SourceUrl
+from .metadata_handling import get_grouped_surls
+from .models import CollEvent
 from .object_store import ObjectStore
 
 STATUS_MAP = {v: k for k, v in Statuses.__dict__.items() if not k.startswith("_")}
@@ -27,6 +27,7 @@ class MonitorApp:
         self.app = Dash(__name__, external_stylesheets=sheets)
         self.depot = depot
         self.depot.current.setup()
+        self._Session = sessionmaker(self.depot.current.engine)
         elems = [
             html.H2("Collection monitor"),
             dcc.Store(id="data-store", storage_type="memory"),
@@ -75,12 +76,8 @@ class MonitorApp:
         pcevs = self.depot.get_handler_events(
             only_latest=False, only_successful=False, from_current=True
         )
-        session = sessionmaker(self.depot.current.engine)()
-        source_urls_grouped = (
-            session.query(SourceUrl.current_status, SourceUrl.handler, func.count())
-            .group_by(SourceUrl.current_status, SourceUrl.handler)
-            .all()
-        )
+        session = self._Session()
+        source_urls_grouped = get_grouped_surls(session)
         session.close()
         surls = (
             self.DF([*source_urls_grouped], columns=["status", "handler", "count"])
@@ -98,20 +95,26 @@ class MonitorApp:
         if not coll_evs:
             return []
         cev_df = self.DF(coll_evs)
+        todo_n = (
+            self.DF(store_data.get("source_url_rate", []))
+            .sum()
+            .to_dict()
+            .get(STATUS_MAP[Statuses.TODO], 0)
+        )
         vc = cev_df["status"].value_counts().to_dict()
         since_last = (time() - cev_df["timestamp"].max()) / 60
-        time_past = (cev_df["timestamp"].max() - cev_df["timestamp"].min()) / 60
-        in_hour = sum([vc.get(s, 0) for s in SUCCESS_STATUSES]) * 60 / time_past
-        todo_in_hours = vc.get(Statuses.TODO, 0) / (in_hour or 0.1)
+        mins_past = (cev_df["timestamp"].max() - cev_df["timestamp"].min()) / 60
+        in_hour = sum([vc.get(s, 0) for s in SUCCESS_STATUSES]) * 60 / mins_past
+        todo_in_hours = todo_n / (in_hour or 0.1)
         pretty_vc = [
             f'{" ".join(STATUS_MAP[k].split("_")).title()}: {v}' for k, v in vc.items()
         ]
         info_lines = [
-            f"last {cev_df.shape[0]} events in {time_past:.2f} minutes of work",
+            f"last {cev_df.shape[0]} events in {parse_time(mins_past)} of work",
             f"statuses: {', '.join(pretty_vc)}",
-            f"{since_last:.2f} minutes since last event",
+            f"{parse_time(since_last)} since last event",
             f"estimate for 1 hour: {in_hour:.2f} - ({24 * in_hour:.2f} / day)",
-            f"all todos in {todo_in_hours:.2f} hours",
+            f"all todos in {parse_time(todo_in_hours * 60)}",
         ]
         info_span = self.html.Span([*map(self.html.H4, info_lines)])
         full_table = self.html.Table([*map(self.cev_to_tr, coll_evs)])
@@ -153,3 +156,11 @@ def monitor(
 ):  # pragma: no cover
     depot = AswanDepot(project, root)
     MonitorApp(depot, interval).app.run_server(port=port, debug=debug)
+
+
+def parse_time(n: float):
+    if n > 60:
+        return f"{n / 60:.1f} hours"
+    if n > 1.5:
+        return f"{n:.1f} minutes"
+    return f"{n * 60:.1f} seconds"
