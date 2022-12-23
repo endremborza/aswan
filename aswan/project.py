@@ -72,9 +72,7 @@ class Project:
         if self._is_test:
             raise PermissionError("last run was a test, do not commit it")
         if self.depot.current.any_in_progress():
-            raise ValueError()
-        # TODO: check if commit hash is same?
-
+            raise ValueError("can't commit, work in progress")
         self.depot.save_current()
         self.depot.current.purge()
 
@@ -118,7 +116,6 @@ class Project:
                 proxy_limits[handler.proxy.res_id] = handler.proxy.max_at_once
             if handler.max_in_parallel is not None:
                 handler_limits[handler.name] = handler.max_in_parallel
-        # TODO add option to alternate cpu use
         return {
             REnum.mCPU: int(self.max_cpu_use) * 1000,
             REnum.DISPLAY: self.max_displays,
@@ -147,7 +144,7 @@ class Project:
         n_to_target = self.batch_size - self._scheduler.queued_task_count
         self._ran_once = True
         return self.depot.current.next_batch(
-            max(n_to_target, 0), to_processing=True, parser=self._surls_to_tasks
+            max(n_to_target, 0), parser=self._surls_to_tasks
         )
 
     def _surls_to_tasks(self, surl_batch: List[SourceUrl]):
@@ -185,7 +182,7 @@ class Project:
                 get_actor_items(self._handler_dic.values(), depot_path=self.depot.root)
             ),
             resource_limits=self.resource_limits,
-            distributed_system=self.distributed_api,  # TODO move test to sync?
+            distributed_system=self.distributed_api,
             verbose=self.debug,
         )
 
