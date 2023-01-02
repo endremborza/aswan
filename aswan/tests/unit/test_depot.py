@@ -54,12 +54,14 @@ def test_coll_event_handling(test_depot: aswan.AswanDepot):
 
 def test_getting_latest_run(test_depot: aswan.AswanDepot):
     test_depot.current.integrate_events([get_cev(output_file="of-x")])
-    test_depot.save_current()
+    first_status = test_depot.save_current().name
     test_depot.current.purge()
     test_depot.init_w_complete()
     test_depot.current.integrate_events([get_cev(output_file="of-y")])
     test_depot.save_current()
     assert next(test_depot.get_handler_events()).cev.output_file == "of-y"
+    test_depot._status_cache = test_depot._load_status_cache()  # to make sure it works
+    assert len(list(test_depot.get_handler_events(post_status=first_status))) == 1
 
 
 def test_parallel_proc(test_depot: aswan.AswanDepot):

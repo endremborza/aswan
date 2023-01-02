@@ -3,31 +3,34 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from structlog import get_logger
+
 from ..constants import DEFAULT_REMOTE_ENV_VAR, HEX_ENV, PW_ENV
 from .base import CONTEXT_YAML, EVENTS_ZIP, STATUS_DB_ZIP, DepotBase, StatusCache
 
 if TYPE_CHECKING:  # pragma: no cover
     from fabric import Connection
 
+logger = get_logger("remote-depot")
+
 
 class RemoteMixin(DepotBase):
     def push(self, remote: Optional[str] = None):
         return self._conn_map(remote, self._push)
 
-    def pull(self, remote: Optional[str] = None, complete=False, post_status=None):
+    def pull(
+        self, remote: Optional[str] = None, complete=False, post_status=None
+    ) -> set[str]:
+        """returns the run ids that have been pulled"""
         return self._conn_map(
             remote, self._pull, complete=complete, post_status=post_status
         )
 
     def _conn_map(self, remote, fun, **kwargs):
-        remote_name = (
-            remote if isinstance(remote, str) else os.environ[DEFAULT_REMOTE_ENV_VAR]
-        )
-        with get_remote(remote_name) as conn:
+        with get_remote(remote) as conn:
             conn.run(f"mkdir -p {self.name}")
             with conn.cd(self.name):
-                fun(conn, **kwargs)
-        return self
+                return fun(conn, **kwargs)
 
     def _push(self, conn: "Connection"):
         present = set([fp[2:] for fp in conn.run("find .", hide=True).stdout.split()])
@@ -35,10 +38,13 @@ class RemoteMixin(DepotBase):
             for subdir in dir_path.iterdir():
                 self._push_subdir(subdir, conn, present)
         self._status_cache.dump(self._cache_path)
-        conn.put(
-            self._cache_path.as_posix(),
-            Path(conn.cwd, self._cache_path.name).as_posix(),
-        )
+        try:
+            conn.put(
+                self._cache_path.as_posix(),
+                Path(conn.cwd, self._cache_path.name).as_posix(),
+            )
+        except Exception as e:
+            logger.warning("couldn't push status cache", e=str(e), e_type=type(e))
 
     def _push_subdir(self, subdir: Path, conn: "Connection", present: set):
         rel_path = subdir.relative_to(self.root)
@@ -85,13 +91,14 @@ class RemoteMixin(DepotBase):
             needed_objects = set([pcev.cev.extend().output_file for pcev in pcevs])
 
         if (not complete) and (post_status is None):
-            return
+            return runs_to_pull
 
         for obj_dir in _ls(self.object_store_path, False):
             for obj_file in _ls(self.object_store_path / obj_dir):
                 if (not complete) and (obj_file not in needed_objects):
                     continue
                 _mv(self.object_store_path / obj_dir / obj_file)
+        return runs_to_pull
 
     def _merge_status_cache(self, conn: "Connection") -> dict:
         import invoke
@@ -130,7 +137,10 @@ class RemoteMixin(DepotBase):
             return conn.get(rem_abs_path, local_path.as_posix())
 
 
-def get_remote(remote_name: str):
+def get_remote(remote: str):
     from zimmauth import ZimmAuth
 
+    remote_name = (
+        remote if isinstance(remote, str) else os.environ[DEFAULT_REMOTE_ENV_VAR]
+    )
     return ZimmAuth.from_env(HEX_ENV, PW_ENV).get_fabric_connection(remote_name)

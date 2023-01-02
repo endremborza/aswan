@@ -271,6 +271,7 @@ class DepotBase:
         only_latest=True,
         from_current: bool = False,
         past_runs: Union[None, int, Iterable[str]] = None,
+        post_status: Optional[str] = None,
     ) -> Iterable["ParsedCollectionEvent"]:
 
         urls = set()
@@ -286,6 +287,10 @@ class DepotBase:
                 and ((not only_successful) or (ev.status in SUCCESS_STATUSES))
                 and ((not only_latest) or (ev.extend().url not in urls))
             )
+
+        if post_status is not None:
+            old_tree = self._get_full_run_tree(self.get_status(post_status))
+            past_runs = self.get_all_run_ids() - old_tree
 
         if from_current:
             event_iters = [map(partial_read_path, self.current.events.iterdir())]

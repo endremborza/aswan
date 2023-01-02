@@ -3,6 +3,7 @@ from pathlib import Path
 
 import aswan
 from aswan.depot import AswanDepot
+from aswan.depot.remote import get_remote
 from aswan.models import CollEvent, RegEvent
 
 _rev = partial(RegEvent, url="url1", handler="H1")
@@ -51,7 +52,8 @@ def test_pull(env_auth_id: str):
         [_rev(url="url3"), _rev(url="url4"), _cev(url="url2")]
     )
     second_status = depot.save_current().name
-    depot.push().purge().setup(True)
+    depot.push()
+    depot.purge().setup(True)
 
     def _get_cev_urls():
         return sorted([pcev.url for pcev in depot.get_handler_events(past_runs=2)])
@@ -74,3 +76,19 @@ def test_pull(env_auth_id: str):
 def test_pull_nothing(env_auth_id: str):
     depot = AswanDepot("empty-pull").setup()
     depot.pull()
+
+
+def test_cache_overwrite_error(env_auth_id: str):
+    depot = AswanDepot("cache-err").setup(True)
+    depot.current.integrate_events([_rev(url="url1")])
+    depot.save_current()
+    depot.push()
+    depot.current.purge()
+    depot.init_w_complete()
+    depot.current.integrate_events([_rev(url="url2")])
+    depot.save_current()
+
+    with get_remote(env_auth_id) as conn:
+        conn.run(f"chmod 400 {conn.cwd}/{depot.name}/{depot._cache_path.name}")
+
+    depot.push()
