@@ -1,0 +1,4 @@
+v0.5.8
+---------------------
+
+post_status kwarg and error handling
