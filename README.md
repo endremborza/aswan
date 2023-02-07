@@ -4,8 +4,7 @@
 [![codeclimate](https://img.shields.io/codeclimate/maintainability/endremborza/aswan.svg)](https://codeclimate.com/github/endremborza/aswan)
 [![codecov](https://img.shields.io/codecov/c/github/endremborza/aswan)](https://codecov.io/gh/endremborza/aswan)
 [![pypi](https://img.shields.io/pypi/v/aswan.svg)](https://pypi.org/project/aswan/)
-[![DOI](https://zenodo.org/badge/360285787.svg)](https://zenodo.org/badge/latestdoi/360285787)
-
+[![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.7477587.svg)](https://doi.org/10.5281/zenodo.7477587)
 
 collect and organize data into a T1 data depot 
 named after the [Aswan Dam](https://en.wikipedia.org/wiki/Aswan_Dam)
