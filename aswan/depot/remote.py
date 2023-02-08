@@ -61,10 +61,14 @@ class RemoteMixin(DepotBase):
         _ls = partial(self._remote_ls, conn)
         _mv = partial(self._conn_move, conn)
         self._merge_status_cache(conn)
+        # TODO: all this set() thing brings a bit of uncertainty
         remote_statuses = set(_ls(self.statuses_path))
-        if not complete:
-            remote_statuses.difference_update(self._load_status_cache().statuses.keys())
-        for rem_status in remote_statuses:
+        if complete:
+            ctx_to_pull = remote_statuses
+        else:
+            ctx_to_pull = remote_statuses.difference(self._status_cache.statuses.keys())
+        logger.info(f"pulling {len(ctx_to_pull)} status contexts")
+        for rem_status in ctx_to_pull:
             _mv(self.statuses_path / rem_status / CONTEXT_YAML)
         leaf, leaf_tree = self._get_leaf()
         status_dbs_to_pull = set()
@@ -80,17 +84,19 @@ class RemoteMixin(DepotBase):
             runs_to_pull = remote_runs - self._get_full_run_tree(break_status)
         elif complete:
             runs_to_pull = remote_runs
-
+        logger.info(f"pulling {len(status_dbs_to_pull)} status dbs")
         for status in status_dbs_to_pull:
             _mv(self.statuses_path / status / STATUS_DB_ZIP)
+        logger.info(f"pulling {len(runs_to_pull)} runs")
         for run in runs_to_pull:
             _mv(self.runs_path / run / EVENTS_ZIP)
         needed_objects = None
         if post_status is not None:
             pcevs = self.get_handler_events(only_latest=False, past_runs=runs_to_pull)
             needed_objects = set([pcev.cev.extend().output_file for pcev in pcevs])
+            logger.info(f"pulling {len(needed_objects)} objects")
 
-        if (not complete) and (post_status is None):
+        if (not complete) and (not needed_objects):
             return runs_to_pull
 
         for obj_dir in _ls(self.object_store_path, False):
@@ -115,6 +121,7 @@ class RemoteMixin(DepotBase):
         rem_cache = StatusCache.read(tmp_path)
         tmp_path.unlink(missing_ok=True)
         self._status_cache.merge(rem_cache)
+        self._status_cache.dump(self._cache_path)
 
     def _remote_ls(self, conn, dir_path: Path, only_remote=True) -> list[str]:
         import invoke

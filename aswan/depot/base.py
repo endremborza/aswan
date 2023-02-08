@@ -208,6 +208,7 @@ class DepotBase:
     def purge(self):
         if self.root.exists():
             rmtree(self.root)
+        self._status_cache = self._load_status_cache()
         return self
 
     def init_w_complete(self):
@@ -216,7 +217,7 @@ class DepotBase:
 
     def get_complete_status(self) -> Status:
         # either an existing, a new or a blank status
-        leaf, leaf_tree = self._get_leaf()
+        leaf, leaf_tree = self._get_leaf(needs_db=True)
         missing_runs = self.get_all_run_ids() - leaf_tree
         if missing_runs:
             return self.integrate(leaf, missing_runs)
@@ -307,15 +308,20 @@ class DepotBase:
                 if only_latest:
                     urls.add(ev.url)
 
-    def _get_leaf(self):
+    def _get_leaf(self, needs_db=False):
         # just one that has no children
         # and has the most runs in its tree
         most_runs = 0
         leaf, leaf_tree = Status(), set()
-        for status_path in self.statuses_path.iterdir():
-            status_name = status_path.name
+        self.statuses_path.mkdir(exist_ok=True)
+        local_names = [sp.name for sp in self.statuses_path.iterdir()]
+        status_names = set([*local_names, *self._status_cache.statuses.keys()])
+        for status_name in status_names:
             candidate = self.get_status(status_name)
             if self._status_cache.parent_keys[status_name]:
+                continue
+            sdb = self.statuses_path / status_name / STATUS_DB_ZIP
+            if needs_db and (not sdb.exists()):
                 continue
             candidate_tree = self._get_full_run_tree(candidate)
             _run_count = len(candidate_tree)
