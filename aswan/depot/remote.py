@@ -33,6 +33,7 @@ class RemoteMixin(DepotBase):
                 return fun(conn, **kwargs)
 
     def _push(self, conn: "Connection"):
+        # TODO: add some validation so that the depot is not corrupted
         present = set([fp[2:] for fp in conn.run("find .", hide=True).stdout.split()])
         for dir_path in self._init_dirs:
             for subdir in dir_path.iterdir():
@@ -121,6 +122,7 @@ class RemoteMixin(DepotBase):
         rem_cache = StatusCache.read(tmp_path)
         tmp_path.unlink(missing_ok=True)
         self._status_cache.merge(rem_cache)
+        self._cache_path.parent.mkdir(exist_ok=True)
         self._status_cache.dump(self._cache_path)
 
     def _remote_ls(self, conn, dir_path: Path, only_remote=True) -> list[str]:
