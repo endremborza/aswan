@@ -6,7 +6,7 @@ from atqo import parallel_map
 
 import aswan
 from aswan.constants import Statuses
-from aswan.depot.base import Run
+from aswan.depot.base import CONTEXT_YAML, Run
 from aswan.models import CollEvent
 
 from .test_metadata_handling import get_cev
@@ -80,3 +80,19 @@ def test_depobj_init(tmp_path):
         Run()
     finally:
         os.chdir(wd)
+
+
+def test_depot_cleanup(test_depot: aswan.AswanDepot):
+    test_depot.current.integrate_events([get_cev(output_file="of-x")])
+    test_depot.save_current()
+    cs = test_depot.get_complete_status()
+    test_depot.current.purge()
+    test_depot.init_w_complete()
+    test_depot.current.integrate_events([get_cev(output_file="of-y")])
+    test_depot.save_current()
+
+    # why attributeerror?? _DepotObj.__path
+    (test_depot.statuses_path / cs.name / CONTEXT_YAML).unlink()
+    cups = test_depot.cleanup_statuses()
+    assert isinstance(cups[cs.name], FileNotFoundError)
+    assert AssertionError in map(type, cups.values())

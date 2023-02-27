@@ -308,6 +308,24 @@ class DepotBase:
                 if only_latest:
                     urls.add(ev.url)
 
+    def cleanup_statuses(self):
+        errs = {}
+        err_set = set()
+        while True:
+            for st in self.statuses_path.iterdir():
+                try:
+                    status = Status.read(st)
+                    assert status.parent not in errs.keys()
+                except Exception as e:
+                    errs[st.name] = e
+            if err_set == set(errs.keys()):
+                break
+            err_set = set(errs.keys())
+
+        for err in err_set:
+            rmtree(self.statuses_path / err)
+        return errs
+
     def _get_leaf(self, needs_db=False):
         # just one that has no children
         # and has the most runs in its tree
@@ -347,14 +365,16 @@ class DepotBase:
             _, run_name = heappop(runs)
             yield self._get_run_events(run_name)
 
-    def _get_run_events(self, run_name, extend=False):
+    def _get_run_events(self, run_name, extend=True):
         with self._run_events_zip(run_name, "r") as zfp:
             for event in zfp.filelist:
-                _fun = partial(_read_event_blob, self.runs_path, run_name, event)
-                _ev = partial_read(event.filename, _fun)
                 if extend:
-                    _ev.extend()
-                yield _ev
+                    yield partial_read(
+                        event.filename, partial(zfp.read, event)
+                    ).extend()
+                else:
+                    _fun = partial(_read_event_blob, self.runs_path, run_name, event)
+                    yield partial_read(event.filename, _fun)
 
     def _save_status_from_current(self, current: Current, status: Status):
         status_dir = self.statuses_path / status.name
