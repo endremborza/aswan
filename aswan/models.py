@@ -52,6 +52,7 @@ class _Event:
             return self
         self._extended = True
         blob = self._read_fun()
+        self._read_fun = None  # som might not be pickleable
         for k, v in zip(self._blob_keys(), blob.split(BLOB_JOIN)):
             setattr(self, k, _from_bytes(v, self._ann()[k]))
         return self
