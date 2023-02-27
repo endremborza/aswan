@@ -15,6 +15,8 @@ from .utils import is_subclass, run_and_log_functions
 
 logger = get_logger()
 
+HANDLER_DIC_T = Optional[Dict[Type[urh.ANY_HANDLER_T], Iterable[str]]]
+
 
 class Project:
     def __init__(
@@ -48,8 +50,8 @@ class Project:
 
     def run(
         self,
-        urls_to_register: Optional[Dict[Type, Iterable[str]]] = None,
-        urls_to_overwrite: Optional[Dict[Type, Iterable[str]]] = None,
+        urls_to_register: HANDLER_DIC_T = None,
+        urls_to_overwrite: HANDLER_DIC_T = None,
         test_run=False,
         keep_running=True,
         force_sync=False,
@@ -83,6 +85,8 @@ class Project:
         conn_error=False,
         sess_broken=False,
         force_sync=False,
+        urls_to_register: HANDLER_DIC_T = None,
+        urls_to_overwrite: HANDLER_DIC_T = None,
         keep_running=True,
     ):
         bool_map = {
@@ -94,6 +98,8 @@ class Project:
         statuses = [s for s, b in bool_map.items() if b]
         prep = [partial(self.depot.current.reset_surls, statuses)]
         self.depot.current.setup()
+        reg_events = self._get_reg_events(urls_to_register, urls_to_overwrite)
+        self.depot.current.integrate_events(reg_events)
         self._run(force_sync, keep_running, prep)
 
     def register_handler(self, handler: Type[urh.ANY_HANDLER_T]):
@@ -156,16 +162,9 @@ class Project:
         ]
 
     def _initiate_status(
-        self,
-        urls_to_register: Optional[Dict[Type[urh.ANY_HANDLER_T], Iterable[str]]],
-        urls_to_overwrite: Optional[Dict[Type[urh.ANY_HANDLER_T], Iterable[str]]],
+        self, urls_to_register: HANDLER_DIC_T, urls_to_overwrite: HANDLER_DIC_T
     ):
-        reg_events = []
-        for url_dic, ovw in [(urls_to_register, False), (urls_to_overwrite, True)]:
-            for handler, urls in (url_dic or {}).items():
-                reg_events.extend(_get_event_bunch(handler, urls, ovw))
-                self.register_handler(handler)
-
+        reg_events = self._get_reg_events(urls_to_register, urls_to_overwrite)
         if self._is_test:
             status = Status()
             for handler in self._handler_dic.values():
@@ -185,6 +184,16 @@ class Project:
             distributed_system=self.distributed_api,
             verbose=self.debug,
         )
+
+    def _get_reg_events(
+        self, urls_to_register: HANDLER_DIC_T, urls_to_overwrite: HANDLER_DIC_T
+    ):
+        out = []
+        for url_dic, ovw in [(urls_to_register, False), (urls_to_overwrite, True)]:
+            for handler, urls in (url_dic or {}).items():
+                out.extend(_get_event_bunch(handler, urls, ovw))
+                self.register_handler(handler)
+        return out
 
 
 def _get_event_bunch(handler: Type[urh.ANY_HANDLER_T], urls, overwrite=False):
