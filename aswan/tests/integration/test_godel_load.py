@@ -10,7 +10,6 @@ def _range_dic(n):
 
 
 def test_simple(godel_env):
-
     name = "godel-simple"
     depot = aswan.AswanDepot(name)
 
@@ -51,7 +50,6 @@ def test_load(godel_env):
 
 class PG(aswan.RequestHandler):
     def parse(self, blob: bytes):
-
         i = int(blob.decode("utf-8"))
         next_page = {}
         if i < 2:

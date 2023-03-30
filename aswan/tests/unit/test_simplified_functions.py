@@ -24,7 +24,6 @@ def test_get_json(godel_test_app):
 
 
 def test_project_run(godel_env: str, tmp_path: Path):
-
     os.environ[DEPOT_ROOT_ENV_VAR] = tmp_path.as_posix()
 
     do_pushing = os.name != "nt"

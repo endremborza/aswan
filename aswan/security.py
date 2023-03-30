@@ -20,7 +20,6 @@ class ProxyAuth:
 
 
 class ProxyBase:
-
     max_at_once = None
     expiration_secs = ONE_YEAR
 

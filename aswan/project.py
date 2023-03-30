@@ -29,7 +29,6 @@ class Project:
         batch_multiplier=16,
         debug=False,
     ):
-
         self.depot = AswanDepot(name, local_root)
         self.distributed_api = distributed_api
         self.debug = debug

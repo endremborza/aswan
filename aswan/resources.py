@@ -4,7 +4,6 @@ from atqo import Capability
 
 
 class REnum(Enum):
-
     mCPU = 0
     DISPLAY = 1
 

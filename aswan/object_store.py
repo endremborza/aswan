@@ -12,7 +12,6 @@ _COMP_NAME = "content"
 
 
 class _Exts:
-
     txt = "txt"
     pkl = "pkl"
     blob = "blob"

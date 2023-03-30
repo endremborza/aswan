@@ -12,7 +12,6 @@ from ..proxy_src import proxy_port, proxy_pw, proxy_user
 
 
 class TestLoad(aswan.RequestHandler):
-
     test_urls = ["/test_page/Nonexistent"]
 
     def load_cache(self, _):
@@ -31,7 +30,6 @@ class SimpleProxy(aswan.ProxyBase):
 
 
 class AuthedProxy(SimpleProxy):
-
     max_at_once = 1
 
     def get_creds(self):

@@ -65,7 +65,6 @@ def _hash_str(s: str):
 
 
 class _DepotObj:
-
     __path = CONTEXT_YAML
 
     @classmethod
@@ -274,7 +273,6 @@ class DepotBase:
         past_runs: Union[None, int, Iterable[str]] = None,
         post_status: Optional[str] = None,
     ) -> Iterable["ParsedCollectionEvent"]:
-
         urls = set()
         handler_name = (
             handler

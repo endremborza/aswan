@@ -37,7 +37,6 @@ class UrlHandlerResult:
 
 @dataclass
 class HandlingTask:
-
     handler: ANY_HANDLER_T
     url: str
 

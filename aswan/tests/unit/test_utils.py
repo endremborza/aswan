@@ -4,7 +4,6 @@ from aswan.utils import add_url_params, get_url_root, run_and_log_functions
 
 
 def test_fun_logger(capsys):
-
     d = {}
 
     def fing():
@@ -51,7 +50,6 @@ def test_url_root(full_url):
 
 
 def test_url_root_weird():
-
     assert get_url_root("http://te-st.com/a/b") == "http://te-st.com"
     assert get_url_root("https://xx.re.te-st.com/a/b") == "https://xx.re.te-st.com"
     assert get_url_root("nothing") is None

@@ -32,7 +32,6 @@ ONE_YEAR = ONE_DAY * 365
 
 
 class Statuses:
-
     TODO = "todo"
     PROCESSING = "processing"
     PROCESSED = "D"

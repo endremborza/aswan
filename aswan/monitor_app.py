@@ -71,7 +71,6 @@ class MonitorApp:
             return out if isinstance(out, dict) else {"list": out}
 
     def update_store(self, _, cev_limit):
-
         # TODO: possibly read past runs
         pcevs = self.depot.get_handler_events(
             only_latest=False, only_successful=False, from_current=True

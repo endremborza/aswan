@@ -14,7 +14,6 @@ def tmp_obj_store(tmp_path):
 
 
 def test_obj_store(tmp_obj_store: ObjectStore):
-
     test_obj = {"X": 10}
     test_pkl_obj = ("F", False)
 
@@ -32,7 +31,6 @@ def test_obj_store(tmp_obj_store: ObjectStore):
 
 
 def test_obj_store_pathgen(tmp_obj_store: ObjectStore):
-
     obj = {"A": 2}
     oname = tmp_obj_store.dump_pickle(obj)
     assert obj == tmp_obj_store.read_pickle(oname)

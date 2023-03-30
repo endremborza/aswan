@@ -18,7 +18,6 @@ _404_URL = f"{test_app_default_address}/test_page/Nonexistent"
 
 class _Setup:
     def __init__(self, tmp_path, Handler, url=_URL, browser=False) -> None:
-
         self.depot = AswanDepot("depot", tmp_path)
         self.cm = ConnectionSession(is_browser=browser, depot_path=self.depot.root)
         self.task = HandlingTask(Handler(), url)
@@ -86,7 +85,6 @@ def test_caching(tmp_path, godel_test_app):
 
 
 def test_404_err(tmp_path, godel_test_app, test_proxy):
-
     s2 = _Setup(tmp_path, ghandlers.GetMain, _404_URL)
     s2.run()
     uhr = s2.get_res()
@@ -94,7 +92,6 @@ def test_404_err(tmp_path, godel_test_app, test_proxy):
 
 
 def test_url_params(godel_test_app):
-
     cm = ConnectionSession()
 
     out = cm.get_parsed_response(
