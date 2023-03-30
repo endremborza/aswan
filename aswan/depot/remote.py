@@ -38,6 +38,7 @@ class RemoteMixin(DepotBase):
         for dir_path in self._init_dirs:
             for subdir in dir_path.iterdir():
                 self._push_subdir(subdir, conn, present)
+        self._merge_status_cache(conn)
         self._status_cache.dump(self._cache_path)
         try:
             conn.put(
