@@ -92,3 +92,23 @@ def test_cache_overwrite_error(env_auth_id: str):
         conn.run(f"chmod 400 {conn.cwd}/{depot.name}/{depot._cache_path.name}")
 
     depot.push()
+
+
+def test_continue(env_auth_id: str):
+    depot = AswanDepot("test-continue").setup(True)
+    depot.current.integrate_events([_rev()])
+    half = depot.save_current()
+    depot.current.purge()
+    depot.init_w_complete()
+    depot.current.integrate_events([_rev(url="url2")])
+    depot.save_current()
+    depot.push()
+    depot.purge()
+
+    depot.setup(True)
+    depot.current.integrate_events([_rev(url="url3")])
+    depot.save_current()
+    depot.push()
+    depot.purge()
+
+    depot.pull(post_status=half.name)
