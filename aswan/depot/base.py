@@ -243,7 +243,6 @@ class DepotBase:
         Run().dump(self.current.root)
 
     def integrate(self, status: Status, runs: Iterable[str]) -> Status:
-
         with TemporaryDirectory() as tmp_dir:
             tmp_curr = Current(Path(tmp_dir)).setup()
             try:
