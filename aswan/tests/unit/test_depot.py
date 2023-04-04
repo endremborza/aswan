@@ -1,6 +1,7 @@
 import os
 from functools import partial
 from pathlib import Path
+from shutil import rmtree
 
 from atqo import parallel_map
 
@@ -96,3 +97,15 @@ def test_depot_cleanup(test_depot: aswan.AswanDepot):
     cups = test_depot.cleanup_statuses()
     assert isinstance(cups[cs.name], FileNotFoundError)
     assert AssertionError in map(type, cups.values())
+
+
+def test_depot_restatus(test_depot: aswan.AswanDepot):
+    test_depot.current.integrate_events([get_cev(output_file="of-x")])
+    test_depot.save_current()
+    for _d in test_depot.statuses_path.iterdir():
+        rmtree(_d)
+    # test_depot._cache_path.unlink()
+    new_comp = test_depot.get_complete_status()
+    assert len(new_comp.integrated_runs) == 1
+    still_comp = test_depot.get_complete_status()
+    assert still_comp.name == new_comp.name

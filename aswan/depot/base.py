@@ -19,6 +19,7 @@ from typing import Iterable, Optional, Union
 import sqlalchemy as db
 import yaml
 from sqlalchemy.orm import Session, sessionmaker
+from structlog import get_logger
 
 from ..constants import (
     DEFAULT_DEPOT_ROOT,
@@ -45,6 +46,7 @@ CONTEXT_YAML = "context.yaml"
 _RUN_SPLIT = "-"
 
 MySession = sessionmaker()
+logger = get_logger("base depot")
 
 
 def _get_git_hash():
@@ -241,13 +243,19 @@ class DepotBase:
         Run().dump(self.current.root)
 
     def integrate(self, status: Status, runs: Iterable[str]) -> Status:
-        out = Status(status.name, list(runs))
+
         with TemporaryDirectory() as tmp_dir:
             tmp_curr = Current(Path(tmp_dir)).setup()
-            with self._status_db_zip(status.name, "r") as zfp:
-                zfp.extract(self.current.db_path.name, path=tmp_dir)
+            try:
+                with self._status_db_zip(status.name, "r") as zfp:
+                    zfp.extract(self.current.db_path.name, path=tmp_dir)
+                parent_name = status.name
+            except FileNotFoundError:
+                logger.warn(f"integrating to an empty database {status.name}")
+                parent_name = None
             for run_name in runs:
                 tmp_curr.integrate_events(self._get_run_events(run_name, True))
+            out = Status(parent_name, list(runs))
             return self._save_status_from_current(tmp_curr, out)
 
     def save_current(self) -> Status:
