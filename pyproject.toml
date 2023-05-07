@@ -17,9 +17,9 @@ dependencies = [
 ]
 scripts = {aswan = "aswan:app"}
 [project.optional-dependencies]
-remote = ["zimmauth","fabric","toml"]
-monitor = ["pandas","dash","dash-bootstrap-components"]
-test = ["branthebuilder","zimmauth[test]"]
+remote = ["zimmauth[ssh,env]"]
+monitor = ["pandas", "dash", "dash-bootstrap-components"]
+test = ["branthebuilder", "zimmauth[test]"]
 doc = ["branthebuilder[doc]"]
 
 [project.urls]
