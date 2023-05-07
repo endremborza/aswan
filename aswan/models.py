@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, Type, Union
 
 import sqlalchemy as db
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
