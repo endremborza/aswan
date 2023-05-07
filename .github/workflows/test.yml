@@ -2,34 +2,36 @@ name: Python Test
 
 on:
   pull_request:
-    branches: 
+    branches:
       - main
   push:
     branches:
       - main
+  schedule:
+    - cron: 0 10 * * *
 
 jobs:
   test:
     strategy:
       matrix:
         os: [ubuntu-20.04, ubuntu-22.04] # TODO, macos-11, macos-10.15, windows-2022, windows-2019]
-        pyv: ['3.10']
+        pyv: ["3.10"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - uses: nanasess/setup-chromedriver@v1
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.pyv }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[test,monitor]
-    - name: Test
-      run: |
-        branb test --v
-    - name: "Upload coverage to Codecov"
-      uses: codecov/codecov-action@v3
-      with:
-        fail_ci_if_error: true
+      - uses: actions/checkout@v3
+      - uses: nanasess/setup-chromedriver@v1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.pyv }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test,monitor]
+      - name: Test
+        run: |
+          branb test --v
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
