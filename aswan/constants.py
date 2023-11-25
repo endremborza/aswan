@@ -49,3 +49,9 @@ SUCCESS_STATUSES = [
     Statuses.PERSISTENT_PROCESSED,
     Statuses.PERSISTENT_CACHED,
 ]
+
+WEBEXT_PORT = 5500
+WE_URL_ROUTE = "url"
+WE_SOURCE_K = "pageSource"
+WE_URL_K = "pageUrl"
+WE_REG_K = "registerUrls"

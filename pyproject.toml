@@ -14,6 +14,8 @@ dependencies = [
     "pyyaml",
     "typer",
     "brotli",
+    "flask",
+    "flask-cors",
     "atqo>=0.3.0"
 ]
 scripts = {aswan = "aswan:app"}

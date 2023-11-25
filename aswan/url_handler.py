@@ -8,6 +8,7 @@ from atqo import Capability, CapabilitySet
 from bs4 import BeautifulSoup, Tag
 from structlog import get_logger
 
+from .constants import WE_REG_K, WE_SOURCE_K
 from .models import RegEvent
 from .resources import Caps
 from .security import DEFAULT_PROXY, ProxyBase
@@ -145,6 +146,27 @@ class BrowserHandler(UrlHandlerBase):
 
         if error occurs during handle browser, it comes here
         """
+        return False
+
+
+class WebExtHandler(UrlHandlerBase):
+    max_in_parallel = 1
+    wait_time = 1
+    max_retries = 5
+    restart_session_after = float("inf")
+
+    def parse(self, we_resp: bytes):
+        we_resp_dic: dict = json.loads(we_resp)
+        self.register_links_to_handler(we_resp_dic.get(WE_REG_K, []))
+        return we_resp_dic[WE_SOURCE_K]
+
+    def handle_driver(self, app):
+        pass
+
+    def start_session(self, _):
+        pass
+
+    def is_session_broken(self, result: Union[int, Exception]):
         return False
 
 

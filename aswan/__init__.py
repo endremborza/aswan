@@ -17,7 +17,8 @@ from .url_handler import (
     RequestHandler,
     RequestJsonHandler,
     RequestSoupHandler,
+    WebExtHandler,
 )
 from .utils import add_url_params
 
-__version__ = "0.5.13"
+__version__ = "0.5.14"
