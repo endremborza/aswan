@@ -249,17 +249,10 @@ class RequestSession:
 
 class WebExtSession:
     def __init__(self) -> None:
-        self.app = Flask(__name__)
-        CORS(self.app)
-        self.app.route("/", methods=["POST", "GET"])(self.handle_post)
-        self.app.route(f"/{WE_URL_ROUTE}")(self.send_latest_url)
-        self.proc = mp.Process(
-            target=self.app.run, kwargs=dict(host="0.0.0.0", port=WEBEXT_PORT)
-        )
         self.tmpdir = TemporaryDirectory()
-        self.url_path = Path(self.tmpdir.name, "url")
-        self.url_path.write_text("")
-        self.driver = self.app
+        self.manager = WebextAppManager(self.tmpdir)
+        self.proc = mp.Process(target=self.manager.run)
+        self.driver = None
 
     def start(self, _: ProxyBase):
         if not self.proc.is_alive():
@@ -270,13 +263,20 @@ class WebExtSession:
         self.tmpdir.cleanup()
 
     def get_response_content(self, handler: WebExtHandler, url: str):
-        self.url_path.write_text(url)
-        fpath = self.get_fpath(url)
+        self.manager.url_path.write_text(url)
+        fpath = self.manager.get_fpath(url)
         for _ in range(handler.max_retries):
             time.sleep(handler.wait_time)
             if fpath.exists():
                 return fpath.read_bytes()
         raise ValueError(f"{fpath} for {url} not processed")
+
+
+class WebextAppManager:
+    def __init__(self, tmpdir: TemporaryDirectory) -> None:
+        self.tmpdir = tmpdir
+        self.url_path = Path(self.tmpdir.name, "url")
+        self.url_path.write_text("")
 
     def handle_post(self):
         data = json.loads(request.data)
@@ -295,6 +295,13 @@ class WebExtSession:
 
     def get_fpath(self, url: str):
         return Path(self.tmpdir.name, md5(url.encode()).hexdigest())
+
+    def run(self):
+        app = Flask(__name__)
+        CORS(app)
+        app.route("/", methods=["POST", "GET"])(self.handle_post)
+        app.route(f"/{WE_URL_ROUTE}")(self.send_latest_url)
+        app.run(host="0.0.0.0", port=WEBEXT_PORT)
 
 
 cap_to_kwarg = {
