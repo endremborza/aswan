@@ -1,5 +1,6 @@
 import json
 import multiprocessing as mp
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -17,7 +18,14 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import Chrome
 from structlog import get_logger
 
-from .constants import HEADERS, WE_URL_K, WE_URL_ROUTE, WEBEXT_PORT, Statuses
+from .constants import (
+    HEADERS,
+    WE_COMMAND_K,
+    WE_URL_K,
+    WE_URL_ROUTE,
+    WEBEXT_PORT,
+    Statuses,
+)
 from .depot import AswanDepot
 from .exceptions import BrokenSessionError, ConnectionError
 from .models import CollEvent, RegEvent
@@ -280,6 +288,15 @@ class WebextAppManager:
 
     def handle_post(self):
         data = json.loads(request.data)
+        if command := data.get(WE_COMMAND_K):
+            logger.info(f"running {command}")
+            try:
+                subprocess.call(command)
+            except Exception as e:
+                logger.error(f"{command} failed with {e}")
+
+            return make_response(f"tried running command {command}")
+
         url = data[WE_URL_K]
         self.get_fpath(url).write_bytes(request.data)
         return make_response("Page source saved successfully")
