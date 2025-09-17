@@ -132,13 +132,14 @@ class Current:
             _p, [f"db.{DB_KIND}", "parent", "events", CONTEXT_YAML]
         )
         self.db_constr = f"{DB_KIND}:///{self.db_path.as_posix()}"
-        self.engine: db.engine.Engine = None
+        self.events.mkdir(parents=True, exist_ok=True)
+        self.engine = db.create_engine(self.db_constr)
         self.next_batch = self._wrap(get_next_batch)
         self.reset_surls = self._wrap(reset_surls)
 
     def setup(self):
-        self.engine = db.create_engine(self.db_constr)
         self.events.mkdir(parents=True, exist_ok=True)
+        self.engine = db.create_engine(self.db_constr)
         Base.metadata.create_all(self.engine)
         return self
 

@@ -223,9 +223,10 @@ class BrowserSession:
 
     def stop(self):
         try:
+            logger.info("stopping browser")
             self.driver.close()
-        except WebDriverException:  # pragma: no cover
-            logger.warning("could not stop browser")
+        except WebDriverException as e:  # pragma: no cover
+            logger.warning(f"could not stop browser: {e}")
 
     def get_response_content(self, handler: ANY_HANDLER_T, url: str):
         self.driver.get(url)
