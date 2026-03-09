@@ -1,4 +1,0 @@
-v0.5.10
----------------------
-
-logging and slight remote fixes
