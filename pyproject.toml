@@ -4,26 +4,20 @@ dynamic = ["version", "description"]
 authors = [{name = "Endre Márk Borza", email = "endremborza@gmail.com"}]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "requests",
-    "beautifulsoup4",
-    "html5lib",
-    "selenium",
     "sqlalchemy",
-    "pyyaml",
-    "typer",
-    "brotli",
-    "flask",
-    "flask-cors",
-    "atqo>=0.3.0"
+    "atqo>=2.0.0",
+    "dirark>=0.2.0"
 ]
-scripts = {aswan = "aswan:app"}
+scripts = {aswan = "aswan._cli:main"}
 [project.optional-dependencies]
-remote = ["zimmauth[ssh,env]"]
+relay = ["flask", "flask-cors"]
+soup = ["beautifulsoup4"]
+browser = ["selenium"]
 monitor = ["pandas", "dash", "dash-bootstrap-components"]
-test = ["branthebuilder", "zimmauth[test]"]
-doc = ["branthebuilder[doc]"]
+test = ["pytest-httpserver", "branthebuilder", "pytest-timeout"]
 
 [project.urls]
 Homepage = "https://github.com/endremborza/aswan"
@@ -32,8 +26,18 @@ Homepage = "https://github.com/endremborza/aswan"
 requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
-[tool.branb]
-line-length = 88
+[tool.uv.sources]
+dirark = { path = "../dirark", editable = true }
+atqo = { path = "../atqo", editable = true }
 
 [tool.pytest.ini_options]
-addopts = "-s"
+addopts = "-s --timeout=30 --timeout-method=thread"
+
+[tool.coverage.run]
+# Scheduler workers run handler/session code in spawned mp.Process workers and
+# the relay server in a thread inside them; measure both so the e2e tests
+# credit that code instead of reporting it as dead.
+source = ["aswan"]
+concurrency = ["multiprocessing", "thread"]
+parallel = true
+sigterm = true
