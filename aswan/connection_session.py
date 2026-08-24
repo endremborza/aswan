@@ -192,7 +192,14 @@ class ConnectionSession(ActorBase):
     def _log_miss(self, msg, content, handler: ANY_HANDLER_T, attempt, status, url):
         out = _parse_exception(content)
         _info = out | {"proxy": self._proxy.host, "status": status}
-        logger.warning(msg, handler=handler.name, url=url, attempt=attempt, **_info)
+        logger.warning(
+            "%s handler=%s url=%s attempt=%s info=%s",
+            msg,
+            handler.name,
+            url,
+            attempt,
+            _info,
+        )
 
 
 class BrowserSession:

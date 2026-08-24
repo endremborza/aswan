@@ -1,7 +1,8 @@
-from flask import Flask, request, send_from_directory
-from structlog import get_logger
+import logging
 
-logger = get_logger()
+from flask import Flask, request, send_from_directory
+
+logger = logging.getLogger(__name__)
 
 test_app_default_port = 5000
 test_app_default_address = f"http://localhost:{test_app_default_port}"

@@ -47,12 +47,12 @@ def browser_wait(
             browser.find_element(*element_tuple).click()
 
 
-def run_and_log_functions(function_list: List[Callable], **kwargs):
+def run_and_log_functions(function_list: list, **kwargs):
     for fun in function_list:
         fun_name = fun.func.__name__ if isinstance(fun, partial) else fun.__name__
-        logger.info(f"running function {fun_name}", **kwargs)
+        print(f"running function {fun_name}", kwargs)
         res = fun()
-        logger.info(f"function {fun_name} returned {res}", **kwargs)
+        print(f"function {fun_name} returned {res}", kwargs)
 
 
 def get_url_root(url: str):
