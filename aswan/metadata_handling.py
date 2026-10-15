@@ -64,25 +64,27 @@ def reset_surls(session: Session, statuses):
 
 
 def integrate_events(
-    session: Session, events: Iterable[Union[RegEvent, CollEvent]], dump_dir=None
+    session: Session, events: Iterable[RegEvent | CollEvent], dump_dir=None
 ):
     reg_urls = defaultdict(list)
-    coll_urls = defaultdict(list)
+    latest: dict[tuple[str, str], CollEvent] = {}
     for event in events:
         if dump_dir:
             event.dump(dump_dir)
         if isinstance(event, RegEvent):
-            suffix = event.overwrite
-            dic = reg_urls
+            reg_urls[(event.handler, event.overwrite)].append(event.url)
         elif isinstance(event, CollEvent):
-            suffix = event.status
-            dic = coll_urls
-        dic[(event.handler, suffix)].append(event.url)
+            key = (event.handler, event.url)
+            if key not in latest or event.recency >= latest[key].recency:
+                latest[key] = event
 
-    for url_dic, fun in [
-        (coll_urls, update_sources),
-        (reg_urls, add_urls),
-    ]:
+    coll_urls = defaultdict(list)
+    for event in latest.values():
+        coll_urls[(event.handler, event.status)].append(event.url)
+
+    # Registrations first: a batch can hold a whole replayed run, where a URL's
+    # registration and collection both appear and the collection must win.
+    for url_dic, fun in [(reg_urls, add_urls), (coll_urls, update_sources)]:
         for (handler, suff), urls in url_dic.items():
             fun(session, handler, urls, suff)
     session.commit()

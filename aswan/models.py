@@ -3,10 +3,12 @@ from dataclasses import asdict, dataclass, field
 from functools import total_ordering
 from hashlib import md5
 from pathlib import Path
-from typing import Callable, Dict, Iterable, Type, Union
+from collections.abc import Callable, Iterable
 
 import sqlalchemy as db
 from sqlalchemy.orm import declarative_base
+
+from .constants import Statuses
 
 Base = declarative_base()
 
@@ -100,23 +102,29 @@ class CollEvent(_Event):
         return f"----\n{self.iso}\n{self.status}\n{self.url}\n{self.handler}\n----"
 
     def __eq__(self, __o: "CollEvent"):
-        return self.timestamp == __o.timestamp
+        return self.recency == __o.recency
 
     def __le__(self, __o: "CollEvent"):
         # less if more recent
-        return self.timestamp >= __o.timestamp
+        return self.recency >= __o.recency
+
+    @property
+    def recency(self) -> tuple[int, bool]:
+        # timestamps have one-second resolution; a session-broken result is
+        # always retried, so another result in the same second came after it
+        return (self.timestamp, self.status != Statuses.SESSION_BROKEN)
 
     @property
     def iso(self):
         return dt.datetime.fromtimestamp(self.timestamp).isoformat()
 
 
-def partial_read_path(file_path: Path) -> Union[CollEvent, RegEvent]:
+def partial_read_path(file_path: Path) -> "CollEvent | RegEvent":
     return partial_read(file_path.name, file_path.read_bytes)
 
 
-def partial_read(file_name: str, reader: Callable) -> Union[CollEvent, RegEvent]:
-    event_types: Iterable[Type[_Event]] = [CollEvent, RegEvent]
+def partial_read(file_name: str, reader: Callable) -> "CollEvent | RegEvent":
+    event_types: Iterable[type[_Event]] = [CollEvent, RegEvent]
     for ev_type in event_types:
         if file_name.startswith(ev_type.__name_prefix__):
             return ev_type.partial_load(file_name, reader)

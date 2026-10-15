@@ -1,21 +1,20 @@
 from functools import partial
 
+import pytest
+
 from aswan.constants import Statuses
-from aswan.metadata_handling import add_urls, get_next_batch
-from aswan.models import CollEvent, SourceUrl
+from aswan.metadata_handling import (
+    add_urls,
+    get_next_batch,
+    integrate_events,
+    update_sources,
+)
+from aswan.models import CollEvent, RegEvent, SourceUrl
+
+from ..helpers import get_cev
 
 get_surl = partial(
     SourceUrl, url="link-1", handler="A", current_status=Statuses.PROCESSED
-)
-
-
-get_cev = partial(
-    CollEvent,
-    url="link-1",
-    handler="A",
-    status=Statuses.PROCESSED,
-    timestamp=1000,
-    output_file="of1",
 )
 
 
@@ -50,6 +49,62 @@ def test_batch(dbsession):
     )
 
     assert len(get_next_batch(dbsession, 2)) == 2
+
+
+def test_dedup_keeps_succeeded_urls(dbsession):
+    add_urls(dbsession, "A", ["u1"])
+    update_sources(dbsession, "A", ["u1"], Statuses.PROCESSED)
+    dbsession.commit()
+
+    def _status():
+        return dbsession.query(SourceUrl).filter_by(url="u1").one().current_status
+
+    assert _status() == Statuses.PROCESSED
+    # re-registering without overwrite must not resurrect a succeeded url
+    add_urls(dbsession, "A", ["u1"])
+    assert _status() == Statuses.PROCESSED
+    # overwrite forces a refetch
+    add_urls(dbsession, "A", ["u1"], overwrite=True)
+    assert _status() == Statuses.TODO
+
+
+def test_self_registration_does_not_loop(dbsession):
+    add_urls(dbsession, "A", ["u1"])
+    integrate_events(
+        dbsession,
+        [
+            CollEvent(
+                url="u1",
+                handler="A",
+                status=Statuses.PROCESSED,
+                timestamp=1,
+                output_file="",
+            ),
+            RegEvent(url="u1", handler="A"),
+        ],
+    )
+    row = dbsession.query(SourceUrl).filter_by(url="u1").one()
+    assert row.current_status == Statuses.PROCESSED
+    assert get_next_batch(dbsession, 10, to_processing=False) == []
+
+
+def test_latest_collection_wins_regardless_of_order(dbsession):
+    add_urls(dbsession, "A", ["u1"])
+    newer = get_cev(url="u1", status=Statuses.PROCESSED, timestamp=2)
+    older = get_cev(url="u1", status=Statuses.CONNECTION_ERROR, timestamp=1)
+    integrate_events(dbsession, [newer, older])
+    row = dbsession.query(SourceUrl).filter_by(url="u1").one()
+    assert row.current_status == Statuses.PROCESSED
+
+
+@pytest.mark.parametrize("order", [1, -1])
+def test_session_break_loses_a_same_second_tie(dbsession, order):
+    add_urls(dbsession, "A", ["u1"])
+    broken = get_cev(url="u1", status=Statuses.SESSION_BROKEN, timestamp=5)
+    failed = get_cev(url="u1", status=Statuses.CONNECTION_ERROR, timestamp=5)
+    integrate_events(dbsession, [broken, failed][::order])
+    row = dbsession.query(SourceUrl).filter_by(url="u1").one()
+    assert row.current_status == Statuses.CONNECTION_ERROR
 
 
 def test_surl():
