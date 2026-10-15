@@ -30,24 +30,16 @@ class Statuses:
     TODO = "todo"
     PROCESSING = "processing"
     PROCESSED = "D"
-    PERSISTENT_PROCESSED = "PP"
     CACHE_LOADED = "CL"
-    PERSISTENT_CACHED = "PC"
     PARSING_ERROR = "PE"
     CONNECTION_ERROR = "CE"
     SESSION_BROKEN = "SB"
 
 
-SUCCESS_STATUSES = [
-    Statuses.PROCESSED,
-    Statuses.CACHE_LOADED,
-    Statuses.PERSISTENT_PROCESSED,
-    Statuses.PERSISTENT_CACHED,
-]
+SUCCESS_STATUSES = [Statuses.PROCESSED, Statuses.CACHE_LOADED]
 
-WEBEXT_PORT = 5500
-WE_URL_ROUTE = "url"
-WE_SOURCE_K = "pageSource"
-WE_URL_K = "pageUrl"
-WE_REG_K = "registerUrls"
-WE_COMMAND_K = "command"
+RELAY_PORT = 5500
+RELAY_URL_ROUTE = "url"
+RELAY_CONTENT_K = "content"
+RELAY_URL_K = "url"
+RELAY_REG_K = "register"

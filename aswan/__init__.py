@@ -14,10 +14,10 @@ from .url_handler import (
     BrowserHandler,
     BrowserJsonHandler,
     BrowserSoupHandler,
+    RelayHandler,
     RequestHandler,
     RequestJsonHandler,
     RequestSoupHandler,
-    WebExtHandler,
 )
 from .utils import add_url_params
 
