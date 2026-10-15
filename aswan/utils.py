@@ -1,36 +1,28 @@
 import json
-import re
 from functools import partial
-from typing import Callable, List, Optional
 from urllib.parse import ParseResult, parse_qsl, unquote, urlencode, urlparse
-
-from selenium.webdriver import Chrome
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions
-from selenium.webdriver.support.ui import WebDriverWait
-from structlog import get_logger
-
-logger = get_logger()
-
-url_root_rex = re.compile(r"(.*?://[a-zA-Z-\.]*)")
 
 
 def is_subclass(kls, base):
     try:
-        return base in kls.mro()  # and (kls.__module__ != base.__module__)
+        return base in kls.mro()
     except (AttributeError, TypeError):
         return False
 
 
 def browser_wait(
-    browser: Chrome,
-    wait_for_id: Optional[str] = None,
-    wait_for_xpath: Optional[str] = None,
-    wait_for_tag: Optional[str] = None,
-    wait_for_class: Optional[str] = None,
+    browser,
+    wait_for_id: str | None = None,
+    wait_for_xpath: str | None = None,
+    wait_for_tag: str | None = None,
+    wait_for_class: str | None = None,
     timeout: int = 20,
     click: bool = False,
 ):
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions
+    from selenium.webdriver.support.ui import WebDriverWait
+
     by_map = {
         By.ID: wait_for_id,
         By.TAG_NAME: wait_for_tag,

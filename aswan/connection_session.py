@@ -207,9 +207,11 @@ class BrowserSession:
         self._headless = headless
         self._eager = eager
         self._show_images = show_images
-        self.driver: Optional[Chrome] = None
+        self.driver = None
 
     def start(self, proxy: ProxyBase):
+        from selenium.webdriver import Chrome
+
         chrome_options = proxy.get_chrome_options()
         if sys.platform == "linux":
             chrome_options.add_argument("--disable-dev-shm-usage")

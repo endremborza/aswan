@@ -84,6 +84,8 @@ class ProxyBase:
 
 class NoProxy(ProxyBase):
     def get_chrome_options(self):
+        from selenium.webdriver import ChromeOptions
+
         return ChromeOptions()
 
     def get_requests_dict(self):
@@ -146,9 +148,9 @@ chrome.webRequest.onAuthRequired.addListener(
 """
 
 
-def get_chrome_options(
-    host, port_no, auth: Optional["ProxyAuth"] = None, prefix="http"
-):
+def get_chrome_options(host, port_no, auth: "ProxyAuth | None" = None, prefix="http"):
+    from selenium import webdriver
+
     chrome_options = webdriver.ChromeOptions()
     if auth is None:
         chrome_options.add_argument(f"--proxy-server={prefix}://{host}:{port_no}")
