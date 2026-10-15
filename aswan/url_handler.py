@@ -1,41 +1,37 @@
 import json
 import random
-from typing import TYPE_CHECKING, Iterable, List, Optional, Type, Union
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
 import requests
-from atqo import Capability, CapabilitySet
-from bs4 import BeautifulSoup, Tag
-from structlog import get_logger
 
-from .constants import WE_REG_K, WE_SOURCE_K
+from .constants import RELAY_CONTENT_K, RELAY_PORT, RELAY_REG_K
 from .models import RegEvent
-from .resources import Caps
+from .resources import CPU_BROWSER, CPU_SIMPLE, DISPLAY, MCPU
 from .security import DEFAULT_PROXY, ProxyBase
 from .utils import add_url_params
 
 if TYPE_CHECKING:
+    from bs4 import BeautifulSoup  # pragma: no cover
     from selenium.webdriver import Chrome  # pragma: no cover
-
-logger = get_logger()
 
 
 class UrlHandlerBase:
     test_urls: Iterable[str] = []
-    url_root: Optional[str] = None
-    proxy_cls: Type[ProxyBase] = DEFAULT_PROXY
+    url_root: str | None = None
+    proxy_cls: type[ProxyBase] = DEFAULT_PROXY
 
-    max_in_parallel: Optional[int] = None
+    max_in_parallel: int | None = None
     max_retries: int = 2
     initiation_retries: int = 2
     wait_on_initiation_fail: int = 20
     restart_session_after: int = 50
-    process_indefinitely: bool = False
 
     def __init__(self):
         self.proxy = self.proxy_cls()
         self._registered_links = []
-        self._url: Optional[str] = None
+        self._url: str | None = None
 
     def set_url(self, url):
         self._url = url
@@ -70,30 +66,33 @@ class UrlHandlerBase:
         next_url = add_url_params(self._url, parsed_params)
         self.register_links_to_handler([next_url])
 
-    def pop_registered_links(self) -> List["RegEvent"]:
+    def pop_registered_links(self) -> list["RegEvent"]:
         out = self._registered_links
         self._registered_links = []
         return out
 
-    def get_caps(self):
-        caps = [*self.proxy.caps]
+    def get_requirements(self) -> dict[str, int]:
+        reqs: dict[str, int] = dict(self.proxy.requirements)
         if isinstance(self, BrowserHandler):
+            reqs[MCPU] = CPU_BROWSER
             if not self.headless:  # pragma: no cover
-                caps.append(Caps.display)
-            if self.eager:  # pragma: no cover
-                caps.append(Caps.eager_browser)  # how to test?
-            else:
-                caps.append(Caps.normal_browser)
+                reqs[DISPLAY] = 1
+                reqs[MCPU] = CPU_SIMPLE
         else:
-            caps.append(Caps.simple)
+            reqs[MCPU] = CPU_SIMPLE
         if self.max_in_parallel is not None:
-            caps.append(Capability({self.name: 1}, name=f"{self.name}-cap"))
-        return CapabilitySet(caps)
+            reqs[self.name] = 1
+        return reqs
 
     @classmethod
     def extend_link(cls, link: str) -> str:
-        if isinstance(link, Tag):
-            link = link["href"]
+        try:
+            from bs4 import Tag
+
+            if isinstance(link, Tag):
+                link = link["href"]
+        except ImportError:
+            pass
         return urljoin(cls.url_root, link)
 
     @property

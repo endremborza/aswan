@@ -1,40 +1,30 @@
-import json
-import multiprocessing as mp
-import subprocess
+import logging
 import sys
 import time
 from dataclasses import dataclass
-from functools import partial
-from hashlib import md5
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, Iterable, Optional
 
 import requests
-from atqo import ActorBase, SchedulerTask
-from flask import Flask, make_response, request
-from flask_cors import CORS
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver import Chrome
-from structlog import get_logger
+from atqo import ActorBase, ActorSlot
 
 from .constants import (
     HEADERS,
-    WE_COMMAND_K,
-    WE_URL_K,
-    WE_URL_ROUTE,
-    WEBEXT_PORT,
+    RELAY_PORT,
     Statuses,
 )
 from .depot import AswanDepot
-from .exceptions import BrokenSessionError, ConnectionError
-from .models import CollEvent, RegEvent
-from .resources import Caps
+from .exceptions import AswanConnectionError as ConnectionError, BrokenSessionError
+from .models import CollEvent
 from .security import DEFAULT_PROXY, ProxyBase
-from .url_handler import ANY_HANDLER_T, RequestSoupHandler, WebExtHandler
+from .url_handler import (
+    ANY_HANDLER_T,
+    BrowserHandler,
+    RelayHandler,
+    RequestSoupHandler,
+)
 from .utils import add_url_params
 
-logger = get_logger()
+logger = logging.getLogger(__name__)
 
 EXCEPTION_STATUSES = {
     ConnectionError: Statuses.CONNECTION_ERROR,
@@ -268,97 +258,32 @@ class RequestSession:
         return resp.status_code
 
 
-class WebExtSession:
-    def __init__(self) -> None:
-        self.tmpdir = TemporaryDirectory()
-        self.manager = WebextAppManager(self.tmpdir)
-        self.proc = mp.Process(target=self.manager.run)
-        self.driver = None
-
-    def start(self, _: ProxyBase):
-        if not self.proc.is_alive():
-            self.proc.start()
-
-    def stop(self):
-        self.proc.kill()
-        self.tmpdir.cleanup()
-
-    def get_response_content(self, handler: WebExtHandler, url: str):
-        self.manager.url_path.write_text(url)
-        fpath = self.manager.get_fpath(url)
-        for _ in range(handler.max_retries):
-            time.sleep(handler.wait_time)
-            if fpath.exists():
-                return fpath.read_bytes()
-        raise ValueError(f"{fpath} for {url} not processed")
-
-
-class WebextAppManager:
-    def __init__(self, tmpdir: TemporaryDirectory) -> None:
-        self.tmpdir = tmpdir
-        self.url_path = Path(self.tmpdir.name, "url")
-        self.url_path.write_text("")
-
-    def handle_post(self):
-        data = json.loads(request.data)
-        if command := data.get(WE_COMMAND_K):
-            logger.info(f"running {command}")
-            try:
-                subprocess.call(command)
-            except Exception as e:
-                logger.error(f"{command} failed with {e}")
-
-            return make_response(f"tried running command {command}")
-
-        url = data[WE_URL_K]
-        self.get_fpath(url).write_bytes(request.data)
-        return make_response("Page source saved successfully")
-
-    def send_latest_url(self):
-        for _ in range(10):
-            latest_url = self.url_path.read_text()
-            if self.get_fpath(latest_url).exists():
-                time.sleep(3)
-                continue
-            return make_response(self.url_path.read_text())
-        return make_response("https://myexternalip.com/json")
-
-    def get_fpath(self, url: str):
-        return Path(self.tmpdir.name, md5(url.encode()).hexdigest())
-
-    def run(self):
-        app = Flask(__name__)
-        CORS(app)
-        app.route("/", methods=["POST", "GET"])(self.handle_post)
-        app.route(f"/{WE_URL_ROUTE}")(self.send_latest_url)
-        app.run(host="0.0.0.0", port=WEBEXT_PORT)
-
-
-cap_to_kwarg = {
-    Caps.display: dict(headless=False),
-    Caps.normal_browser: dict(is_browser=True),
-    Caps.eager_browser: dict(is_browser=True, eager=True),
-}
-
-
-def get_actor_items(handlers: Iterable[ANY_HANDLER_T], depot_path: Path):
-    # TODO this is extreme hacky
-    for handler in handlers:
-        caps = handler.get_caps()
-        full_kwargs = dict(proxy_cls=handler.proxy_cls, depot_path=depot_path)
-        for cap in caps:
-            full_kwargs.update(cap_to_kwarg.get(cap, {}))
-        if isinstance(handler, WebExtHandler):
-            full_kwargs["is_webext"] = True
-        if (
-            full_kwargs.get("is_browser")
-            and full_kwargs.get("headless", True)
-            and handler.proxy.needs_auth
-        ):
-            raise RuntimeError("can't have auth (extension) in headless browser")
-        yield caps, partial(ConnectionSession, **full_kwargs)
-
-
 def _parse_exception(e):
-    # tbl = [tb.strip().split("\n") for tb in traceback.format_tb(e.__traceback__)]
-    return {"e_type": type(e).__name__, "e_msg": str(e).split("\n")[0]}  # , "tb": tbl}
+    return {"e_type": type(e).__name__, "e_msg": str(e).split("\n")[0]}
+
+
+def get_session_slot(handler: ANY_HANDLER_T, depot_path: Path) -> ActorSlot:
+    # One ConnectionSession class backs every handler; atqo's ActorSlot carries
+    # the per-handler init kwargs and resource profile. The slot's partial
+    # pickles cleanly across a MultiProcAPI spawn (module-level class + plain
+    # kwargs), so no dynamic-subclass machinery is needed.
+    kwargs: dict = {"proxy_cls": handler.proxy_cls, "depot_path": depot_path}
+    if isinstance(handler, BrowserHandler):
+        kwargs["is_browser"] = True
+        kwargs["headless"] = handler.headless
+        kwargs["eager"] = handler.eager
+    if isinstance(handler, RelayHandler):
+        kwargs["is_relay"] = True
+        kwargs["relay_port"] = handler.listen_port
+    if (
+        kwargs.get("is_browser")
+        and kwargs.get("headless", True)
+        and handler.proxy.needs_auth
+    ):
+        raise RuntimeError("can't have auth (extension) in headless browser")
+    return ActorSlot(
+        ConnectionSession,
+        name=handler.name,
+        kwargs=kwargs,
+        requirements=handler.get_requirements(),
+    )

@@ -4,11 +4,6 @@ import random
 import time
 import zipfile
 from dataclasses import dataclass
-from typing import Optional
-
-from atqo import Capability
-from selenium import webdriver
-from selenium.webdriver import ChromeOptions
 
 from .constants import CONFIG_PATH, ONE_YEAR
 
@@ -30,15 +25,12 @@ class ProxyBase:
         self._update_hosts()
         self._hosts = json.loads(self._get_path().read_text()) or [None]
         name = type(self).__name__
-        self.res_id = f"proxy-resource-{name}"
-        in_cap = {}
-        if self.max_at_once:
-            in_cap[self.res_id] = 1
+        self.res_id = f"proxy-{name}"
+        self.requirements: dict[str, int] = {self.res_id: 1} if self.max_at_once else {}
         self.host = self.set_new_host()
         self.needs_auth = self.get_creds() is not None
-        self.caps = [Capability(in_cap, name=f"{name}-pcap")]
 
-    def get_creds(self) -> Optional[ProxyAuth]:
+    def get_creds(self) -> "ProxyAuth | None":
         """if authentication is needed"""
         pass
 
