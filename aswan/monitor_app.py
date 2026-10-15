@@ -1,7 +1,6 @@
 from itertools import islice
 from time import time
 
-import typer
 from sqlalchemy.orm import sessionmaker
 
 from .constants import SUCCESS_STATUSES, Statuses
@@ -142,19 +141,22 @@ class MonitorApp:
         return self.html.Tr([*map(self.html.Td, [*tds, link])])
 
 
-app = typer.Typer()
+def main() -> None:
+    import argparse
 
-
-@app.command()
-def monitor(
-    project: str,
-    root: str = None,
-    port: int = 6969,
-    interval: int = 30,
-    debug: bool = False,
-):  # pragma: no cover
-    depot = AswanDepot(project, root)
-    MonitorApp(depot, interval).app.run_server(port=port, debug=debug)
+    try:
+        import dash  # noqa: F401
+    except ImportError:
+        raise SystemExit("Install aswan[monitor] to use the dashboard.")
+    parser = argparse.ArgumentParser(description="Aswan monitoring dashboard")
+    parser.add_argument("project")
+    parser.add_argument("--root", default=None)
+    parser.add_argument("--port", type=int, default=6969)
+    parser.add_argument("--interval", type=int, default=30)
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+    depot = AswanDepot(args.project, args.root)
+    MonitorApp(depot, args.interval).app.run(port=args.port, debug=args.debug)
 
 
 def parse_time(n: float):

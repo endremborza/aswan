@@ -1,9 +1,12 @@
 import json
+import sys
+
+import pytest
 
 from aswan import AswanDepot
-from aswan.monitor_app import MonitorApp
+from aswan.monitor_app import MonitorApp, main
 
-from .test_metadata_handling import get_cev
+from ..helpers import get_cev
 
 
 def test_monitor_app(test_depot: AswanDepot):
@@ -18,3 +21,10 @@ def test_monitor_app(test_depot: AswanDepot):
     mapp.update_status(store)
 
     assert mapp.update_metrics({}) == []
+
+
+def test_main_without_monitor_extra_names_the_extra(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "dash", None)
+    monkeypatch.setattr(sys, "argv", ["aswan", "proj", "--root", str(tmp_path)])
+    with pytest.raises(SystemExit, match=r"aswan\[monitor\]"):
+        main()
