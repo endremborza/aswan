@@ -1,16 +1,21 @@
 import os
 from functools import partial
 from pathlib import Path
-from shutil import rmtree
 
 from atqo import parallel_map
 
 import aswan
 from aswan.constants import Statuses
-from aswan.depot.base import CONTEXT_YAML, Run
+from aswan.depot.base import (
+    CONTEXT_JSON,
+    Run,
+    STATUS_DB_ZIP,
+    STATUS_RUNS_JSON,
+    get_sorted_coll_events,
+)
 from aswan.models import CollEvent
 
-from .test_metadata_handling import get_cev
+from ..helpers import get_cev, seed_run, statuses
 
 
 def test_coll_event_handling(test_depot: aswan.AswanDepot):
@@ -54,13 +59,12 @@ def test_coll_event_handling(test_depot: aswan.AswanDepot):
 
 def test_getting_latest_run(test_depot: aswan.AswanDepot):
     test_depot.current.integrate_events([get_cev(output_file="of-x")])
-    first_status = test_depot.save_current().name
+    first_status = test_depot.save_current()  # returns Status object
     test_depot.current.purge()
     test_depot.init_w_complete()
     test_depot.current.integrate_events([get_cev(output_file="of-y")])
     test_depot.save_current()
     assert next(test_depot.get_handler_events()).cev.output_file == "of-y"
-    test_depot._status_cache = test_depot._load_status_cache()  # to make sure it works
     assert len(list(test_depot.get_handler_events(post_status=first_status))) == 1
 
 
@@ -83,28 +87,35 @@ def test_depobj_init(tmp_path):
 
 
 def test_depot_cleanup(test_depot: aswan.AswanDepot):
-    test_depot.current.integrate_events([get_cev(output_file="of-x")])
-    test_depot.save_current()
-    cs = test_depot.get_complete_status()
-    test_depot.current.purge()
-    test_depot.init_w_complete()
-    test_depot.current.integrate_events([get_cev(output_file="of-y")])
-    test_depot.save_current()
-
-    # why attributeerror?? _DepotObj.__path
-    (test_depot.statuses_path / cs.name / CONTEXT_YAML).unlink()
-    cups = test_depot.cleanup_statuses()
-    assert isinstance(cups[cs.name], FileNotFoundError)
-    assert AssertionError in map(type, cups.values())
+    seed_run(test_depot, output_file="of-x")
+    seed_run(test_depot, output_file="of-y")
+    run_dirs = list(test_depot.runs_path.iterdir())
+    assert len(run_dirs) == 2
+    for run_dir in run_dirs:
+        assert (run_dir / CONTEXT_JSON).exists()
 
 
 def test_depot_restatus(test_depot: aswan.AswanDepot):
     test_depot.current.integrate_events([get_cev(output_file="of-x")])
     test_depot.save_current()
-    for _d in test_depot.statuses_path.iterdir():
-        rmtree(_d)
-    # test_depot._cache_path.unlink()
+    # Remove the status files to force recomputation
+    (test_depot.root / STATUS_DB_ZIP).unlink(missing_ok=True)
+    (test_depot.root / STATUS_RUNS_JSON).unlink(missing_ok=True)
     new_comp = test_depot.get_complete_status()
     assert len(new_comp.integrated_runs) == 1
     still_comp = test_depot.get_complete_status()
     assert still_comp.name == new_comp.name
+
+
+def test_restatus_without_status_db_replays_every_run(test_depot: aswan.AswanDepot):
+    seed_run(test_depot, url="u1")
+    seed_run(test_depot, url="u2")
+    (test_depot.root / STATUS_DB_ZIP).unlink()
+    assert set(statuses(test_depot)) == {("A", "u1"), ("A", "u2")}
+
+
+def test_latest_event_is_the_retry_of_a_same_second_session_break():
+    broken = get_cev(status=Statuses.SESSION_BROKEN, timestamp=5)
+    failed = get_cev(status=Statuses.CONNECTION_ERROR, timestamp=5)
+    for events in ([broken, failed], [failed, broken]):
+        assert next(get_sorted_coll_events(events)).status == failed.status
