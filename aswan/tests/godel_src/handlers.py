@@ -40,7 +40,6 @@ class GetMain(aswan.RequestSoupHandler):
     proxy_cls = AuthedProxy
     url_root = test_app_default_address
     test_urls = ["/test_page/Alonzo_Church.html", "/test_page/Nonexistent"]
-    process_indefinitely = True
     _vtries = 0
 
     def parse(self, soup: BeautifulSoup):

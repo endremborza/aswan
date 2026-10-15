@@ -20,7 +20,7 @@ class SourceUrl(Base):
     cid = db.Column(db.Integer, primary_key=True)
     url = db.Column(db.String)
     handler = db.Column(db.String)
-    current_status = db.Column(db.String)
+    current_status = db.Column(db.String, index=True)
     uix = db.UniqueConstraint(url, handler)
 
     def __repr__(self):

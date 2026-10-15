@@ -160,18 +160,14 @@ class ConnectionSession(ActorBase):
         self.session.start(self._proxy)
         self._num_queries = 0
 
-    def _get_out_and_status(self, task: HandlingTask) -> tuple[Any, str]:
+    def _get_out_and_status(self, handler: ANY_HANDLER_T, url: str) -> tuple:
         try:
-            out = self.get_parsed_response(task.url, task.handler)
-            if task.handler.process_indefinitely:
-                status = Statuses.PERSISTENT_PROCESSED
-            else:
-                status = Statuses.PROCESSED
+            out = self.get_parsed_response(url, handler)
+            status = Statuses.PROCESSED
         except Exception as e:
             out = _parse_exception(e)
             status = EXCEPTION_STATUSES.get(type(e), DEFAULT_EXCEPTION_STATUS)
-            _h = task.handler
-            self._log_miss("Gave Up", e, _h, _h.max_retries, status, task.url)
+            self._log_miss("Gave Up", e, handler, handler.max_retries, status, url)
         return out, status
 
     def _initiate_handler(self, handler: ANY_HANDLER_T):

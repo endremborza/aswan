@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Iterable, List, Union
+from collections.abc import Iterable
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -25,18 +25,14 @@ def add_urls(session: Session, handler: str, urls: Iterable[str], overwrite=Fals
 
 
 def update_sources(session: Session, handler: str, urls: Iterable[str], status):
-    base_q = session.query(SourceUrl).filter(
+    session.query(SourceUrl).filter(
         SourceUrl.handler == handler, SourceUrl.url.in_(urls)
-    )
-    if status in [Statuses.PROCESSED, Statuses.CACHE_LOADED]:
-        base_q.delete()
-    else:
-        base_q.update({"current_status": status})
+    ).update({"current_status": status})
 
 
 def get_next_batch(
     session: Session, size: int, to_processing=True, parser=list
-) -> List[SourceUrl]:
+) -> list[SourceUrl]:
     to_try = [Statuses.TODO, Statuses.SESSION_BROKEN]
     query = (
         session.query(SourceUrl)
