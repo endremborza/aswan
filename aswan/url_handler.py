@@ -148,35 +148,57 @@ class BrowserHandler(UrlHandlerBase):
         return False
 
 
-class WebExtHandler(UrlHandlerBase):
+class RelayHandler(UrlHandlerBase):
+    """Delegates collection to an external worker over an HTTP port.
+
+    Override ``make_command`` to trigger the worker for a url, and
+    ``make_followup`` to issue a command derived from the response. A
+    pull-based worker can instead poll ``GET /url`` for the pending url. The
+    worker POSTs ``{url, content, register?}`` back to the port.
+
+    ``relay_timeout`` bounds one wait for the worker's POST (polled every
+    ``wait_time`` seconds); ``max_retries`` counts whole attempts, each of
+    which re-issues ``make_command``.
+    """
+
     max_in_parallel = 1
+    listen_port = RELAY_PORT
     wait_time = 1
-    max_retries = 5
+    relay_timeout = 5
+    max_retries = 2
     restart_session_after = float("inf")
 
-    def parse(self, we_resp: bytes):
-        we_resp_dic: dict = json.loads(we_resp)
-        self.register_links_to_handler(we_resp_dic.get(WE_REG_K, []))
-        return we_resp_dic[WE_SOURCE_K]
+    def make_command(self, url: str) -> "list[str] | None":
+        """command issued to trigger external collection of ``url``"""
+        return None
 
-    def handle_driver(self, app):
+    def make_followup(self, response: bytes) -> "list[str] | None":
+        """command issued after the response arrives, may derive from it"""
+        return None
+
+    def parse(self, response: bytes):
+        resp_dic: dict = json.loads(response)
+        self.register_links_to_handler(resp_dic.get(RELAY_REG_K, []))
+        return resp_dic[RELAY_CONTENT_K]
+
+    def handle_driver(self, _):
         pass
 
     def start_session(self, _):
         pass
 
-    def is_session_broken(self, result: Union[int, Exception]):
+    def is_session_broken(self, result: "int | Exception"):
         return False
 
 
-ANY_HANDLER_T = Union[RequestHandler, BrowserHandler]
+ANY_HANDLER_T = RequestHandler | BrowserHandler | RelayHandler
 
 
 class _SoupMixin:
     def pre_parse(self, blob: bytes):
         from bs4 import BeautifulSoup
 
-        return BeautifulSoup(blob, "html5lib")
+        return BeautifulSoup(blob, "html.parser")
 
     def parse(self, soup: "BeautifulSoup"):
         """parse bs4 soup"""
