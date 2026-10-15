@@ -112,32 +112,37 @@ class Current:
         self.next_batch = self._wrap(get_next_batch)
         self.reset_surls = self._wrap(reset_surls)
 
-    def setup(self):
+    def setup(self) -> "Current":
         self.events.mkdir(parents=True, exist_ok=True)
+        # Pooled connections may point at a db file that has since been replaced
+        # (purge, status extract), so they are released before reconnecting.
+        self.engine.dispose()
         self.engine = db.create_engine(self.db_constr)
         Base.metadata.create_all(self.engine)
         return self
 
-    def purge(self):
+    def purge(self) -> None:
         if self.root.exists():
             rmtree(self.root)
 
-    def get_parent(self):
-        try:
-            return self.parent.read_text()
-        except FileNotFoundError:
-            return None
-
-    def any_in_progress(self):
+    def any_in_progress(self) -> bool:
         with self._get_session() as session:
             for status, _, count in get_grouped_surls(session):
                 if status == Statuses.PROCESSING:
                     return count > 0
+        return False
 
-    def integrate_events(self, events: Iterable[Union[CollEvent, RegEvent]]):
+    def integrate_events(self, events: Iterable[CollEvent | RegEvent]) -> None:
         self._wrap(integrate_events)(events, self.events)
 
-    def get_run_name(self):
+    def apply_events(self, events: Iterable[CollEvent | RegEvent]) -> None:
+        """Update SQLite from events already dumped to disk by a worker."""
+        self._wrap(integrate_events)(events, None)
+
+    def is_test(self) -> bool:
+        return self.run_ctx.exists() and Run.read(self.root).is_test
+
+    def get_run_name(self) -> str:
         hash_base = self.run_ctx.read_text() + "::".join(
             sorted(map(Path.name.fget, self.events.iterdir()))
         )

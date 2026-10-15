@@ -34,89 +34,91 @@ DEFAULT_EXCEPTION_STATUS = Statuses.PARSING_ERROR
 
 
 @dataclass
-class UrlHandlerResult:
-    event: CollEvent
-    registered_links: list[RegEvent]
-
-
-@dataclass
 class HandlingTask:
     handler: ANY_HANDLER_T
     url: str
-
-    def get_scheduler_task(self) -> SchedulerTask:
-        caps = self.handler.get_caps()
-        return SchedulerTask(argument=self, requirements=caps)
 
 
 class ConnectionSession(ActorBase):
     def __init__(
         self,
-        depot_path: Optional[Path] = None,
+        depot_path: Path | None = None,
         is_browser=False,
         headless=True,
         eager=False,
         proxy_cls: type[ProxyBase] = DEFAULT_PROXY,
-        is_webext: bool = False,
+        is_relay: bool = False,
+        relay_port: int = RELAY_PORT,
     ):
         self.is_browser = is_browser
         self.eager = eager
         self._proxy = proxy_cls()
+        # Workers only touch the object store (content-addressed, no SQLite
+        # contention) and the events dir (also content-addressed filenames).
+        # SQLite is owned exclusively by the main process; events ride back
+        # through the scheduler result for the main process to integrate.
         if depot_path is not None:
             depot = AswanDepot(depot_path.name, depot_path.parent)
-            self.current = depot.current.setup()
+            self.events_dir = depot.current.events
+            self.events_dir.mkdir(parents=True, exist_ok=True)
             self.store = depot.object_store
         else:
-            self.current = None
+            self.events_dir = None
             self.store = None
 
-        self.session = (
-            BrowserSession(headless, self.eager)
-            if self.is_browser
-            else (WebExtSession() if is_webext else RequestSession())
-        )
+        if is_relay:
+            from ._relay_session import RelaySession
+
+            self.session = RelaySession(relay_port)
+        elif self.is_browser:
+            self.session = BrowserSession(headless, self.eager)
+        else:
+            self.session = RequestSession()
+
         self._initiated_handlers = set()
         self._broken_handlers = set()
+        self._handler_cache: dict[str, ANY_HANDLER_T] = {}
         self._num_queries = 0
         self.session.start(self._proxy)
 
     def consume(self, task: HandlingTask):
-        handler_name = task.handler.name
+        # MultiProcAPI pickles task per dispatch, so handler state would reset
+        # every call without this cache.
+        handler = self._handler_cache.setdefault(task.handler.name, task.handler)
+        handler_name = handler.name
         if (handler_name in self._broken_handlers) or (
-            task.handler.restart_session_after < self._num_queries
+            handler.restart_session_after < self._num_queries
         ):
             self._restart(new_proxy=False)
 
         if handler_name not in self._initiated_handlers:
-            self._initiate_handler(task.handler)
+            self._initiate_handler(handler)
 
         try:
-            cached_resp = task.handler.load_cache(task.url)
+            cached_resp = handler.load_cache(task.url)
         except Exception as e:
-            logger.warning("error during cache loading", e=e, e_type=type(e))
+            logger.warning("error during cache loading %s %s", type(e), e)
             cached_resp = None
         if cached_resp is not None:
-            status = (
-                Statuses.PERSISTENT_CACHED
-                if task.handler.process_indefinitely
-                else Statuses.CACHE_LOADED
-            )
+            status = Statuses.CACHE_LOADED
             out = cached_resp
         else:
-            task.handler.set_url(task.url)
-            time.sleep(task.handler.get_sleep_time())
-            out, status = self._get_out_and_status(task)
+            handler.set_url(task.url)
+            time.sleep(handler.get_sleep_time())
+            out, status = self._get_out_and_status(handler, task.url)
             if status == Statuses.SESSION_BROKEN:
                 self._broken_handlers.add(handler_name)
             self._num_queries += 1
-        self.proc_result(task, out, status)
+        return self.proc_result(handler, task.url, out, status)
 
     def stop(self):
         self.session.stop()
 
     def get_parsed_response(
-        self, url, handler=RequestSoupHandler(), params: Optional[dict] = None
+        self, url, handler: ANY_HANDLER_T | None = None, params: dict | None = None
     ):
+        if handler is None:
+            handler = RequestSoupHandler()
         if params:
             url = add_url_params(url, params)
         for attempt in range(handler.max_retries):
@@ -135,15 +137,19 @@ class ConnectionSession(ActorBase):
             raise ConnectionError(f"request resulted in error with status {content}")
         return handler.parse(handler.pre_parse(content))
 
-    def proc_result(self, task: HandlingTask, out: Any, status: str):
+    def proc_result(self, handler: ANY_HANDLER_T, url: str, out, status: str) -> list:
         event = CollEvent(
-            handler=task.handler.name,
-            url=task.url,
+            handler=handler.name,
+            url=url,
             timestamp=int(time.time()),
             output_file=self.store.dump(out) if out is not None else "",
             status=status,
         )
-        self.current.integrate_events([event, *task.handler.pop_registered_links()])
+        events = [event, *handler.pop_registered_links()]
+        if self.events_dir is not None:
+            for e in events:
+                e.dump(self.events_dir)
+        return events
 
     def _restart(self, new_proxy=True):
         self.session.stop()
