@@ -60,11 +60,31 @@ def test_purge(tmp_obj_store: ObjectStore):
         onames.append(oname)
         assert obj == tmp_obj_store.read_pickle(oname)
     tmp_obj_store.purge()
-    for obj, oname in zip(objs, onames):
-        with pytest.raises(FileNotFoundError):
-            assert obj == tmp_obj_store.read_pickle(oname)
+    for oname in onames:
+        with pytest.raises(KeyError):
+            tmp_obj_store.read_pickle(oname)
+
+
+def test_commit_moves_to_ark_then_reads(tmp_obj_store: ObjectStore):
+    name = tmp_obj_store.dump_str("persistent")
+    tmp_obj_store.commit()
+    assert tmp_obj_store.read(name) == "persistent"
+
+
+def test_merge_from_other(tmp_path):
+    a = ObjectStore(tmp_path / "a")
+    b = ObjectStore(tmp_path / "b")
+    name_staged = b.dump_str("staged")
+    name_committed = b.dump_str("committed-then-merged")
+    b.commit()
+    name_post = b.dump_str("staged-after-commit")
+
+    a.merge_from(b)
+    assert a.read(name_staged) == "staged"
+    assert a.read(name_committed) == "committed-then-merged"
+    assert a.read(name_post) == "staged-after-commit"
 
 
 def test_soup(tmp_obj_store: ObjectStore):
-    s = BeautifulSoup("<html></html>", "html5lib")
+    s = BeautifulSoup("<html></html>", "html.parser")
     tmp_obj_store.dump(s)
