@@ -245,7 +245,7 @@ class BrowserSession:
 
 class RequestSession:
     def __init__(self):
-        self.driver: Optional[requests.Session] = None
+        self.driver: requests.Session | None = None
 
     def start(self, proxy: ProxyBase):
         self.driver = requests.Session()

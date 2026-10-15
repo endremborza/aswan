@@ -52,7 +52,7 @@ class _Event:
             return self
         self._extended = True
         blob = self._read_fun()
-        self._read_fun = None  # som might not be pickleable
+        self._read_fun = None  # some readers may not be pickleable
         for k, v in zip(self._blob_keys(), blob.split(BLOB_JOIN)):
             setattr(self, k, _from_bytes(v, self._ann()[k]))
         return self
@@ -74,7 +74,7 @@ class _Event:
         return filter(lambda k: k not in cls.__name_keys__, cls._ann().keys())
 
     @classmethod
-    def _ann(cls) -> Dict[str, type]:
+    def _ann(cls) -> "dict[str, type]":
         _full_ann_items = {**cls.__annotations__, **_Event.__annotations__}.items()
         return {k: v for k, v in _full_ann_items if not k.startswith("_")}
 
@@ -136,9 +136,9 @@ def _to_str(val):
 
 
 def _from_str(val: str, dtype):
-    if dtype == int:
+    if dtype is int:
         return int(val, base=16)
-    if dtype == bool:
+    if dtype is bool:
         return val == "T"
     assert isinstance(val, str)
     return val

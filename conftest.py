@@ -78,13 +78,10 @@ def tables(engine):
 
 @pytest.fixture
 def dbsession(engine, tables):
-    """Returns an sqlalchemy session, and after the test tears down everything properly."""
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection)
-
     yield session
-
     session.close()
     transaction.rollback()
     connection.close()

@@ -7,7 +7,7 @@ from .project import Project
 
 
 def get_soup(
-    url: str, params: Optional[dict] = None, browser=False, headless=True, headers=None
+    url: str, params: dict | None = None, browser=False, headless=True, headers=None
 ):
     cs = ConnectionSession(is_browser=browser, headless=headless)
     if headers and not browser:

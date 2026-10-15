@@ -106,7 +106,7 @@ class MonitorApp:
         in_hour = sum([vc.get(s, 0) for s in SUCCESS_STATUSES]) * 60 / mins_past
         todo_in_hours = todo_n / (in_hour or 0.1)
         pretty_vc = [
-            f'{" ".join(STATUS_MAP[k].split("_")).title()}: {v}' for k, v in vc.items()
+            f"{' '.join(STATUS_MAP[k].split('_')).title()}: {v}" for k, v in vc.items()
         ]
         info_lines = [
             f"last {cev_df.shape[0]} events in {parse_time(mins_past)} of work",

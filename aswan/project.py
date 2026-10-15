@@ -195,6 +195,6 @@ class Project:
         return out
 
 
-def _get_event_bunch(handler: Type[urh.ANY_HANDLER_T], urls, overwrite=False):
+def _get_event_bunch(handler: type[urh.ANY_HANDLER_T], urls, overwrite=False):
     part = partial(RegEvent, handler=handler.__name__, overwrite=overwrite)
     return map(part, map(handler.extend_link, urls))

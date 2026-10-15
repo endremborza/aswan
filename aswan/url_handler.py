@@ -49,7 +49,7 @@ class UrlHandlerBase:
     def register_links_to_handler(
         self,
         links: Iterable[str],
-        handler_cls: Optional[Type["ANY_HANDLER_T"]] = None,
+        handler_cls: "type[ANY_HANDLER_T] | None" = None,
         overwrite: bool = False,
     ):
         if handler_cls is None:
@@ -119,7 +119,7 @@ class RequestHandler(UrlHandlerBase):
     def start_session(self, session: "requests.Session"):
         """starts session if no browser needed"""
 
-    def is_session_broken(self, result: Union[int, Exception]):
+    def is_session_broken(self, result: "int | Exception"):
         """either response code, or exception"""
         # for determining to restart the session,
         # or proceed with handling connection error
@@ -186,8 +186,6 @@ class _SoupMixin:
 
 class _JsonMixin:
     def pre_parse(self, blob: bytes):
-        # except JSONDecodeError:
-        # json.loads(BeautifulSoup(resp, "html5lib").text)
         return json.loads(blob)
 
     def parse(self, obj: dict):

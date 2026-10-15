@@ -36,7 +36,6 @@ def test_coll_event_handling(test_depot: aswan.AswanDepot):
     _ghe = partial(test_depot.get_handler_events, from_current=True)
 
     cevs1 = [*_ghe(At, only_latest=True, only_successful=True)]
-
     assert len(cevs1) == 1
     assert cevs1[0].cev.extend().output_file == "of2"
 
