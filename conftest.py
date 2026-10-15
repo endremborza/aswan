@@ -51,11 +51,19 @@ class AppRunner:
         self.app_creator = app_creator
         self._port_no = port_no
         self.app_address = f"http://localhost:{port_no}"
-        self._process: Optional[Process] = None
+        self._process: mp.process.BaseProcess | None = None
         self._verbose = verbose
 
     def start(self):
-        self._process = Process(target=self._run_app)
+        if _port_in_use(self._port_no):
+            raise RuntimeError(
+                f"port {self._port_no} already in use — a stale test server is "
+                "likely still running; free it before starting (the spawned "
+                "server would otherwise fail to bind silently)"
+            )
+        self._process = _SPAWN.Process(
+            target=_run_app, args=(self.app_creator, self._port_no, self._verbose)
+        )
         self._process.start()
         for i in range(10):
             try:
@@ -72,12 +80,6 @@ class AppRunner:
         self._process.kill()
         self._process.join()
         self._process.close()
-
-    def _run_app(self):
-        if not self._verbose:
-            sys.stdout = open(os.devnull, "w")
-            sys.stderr = open(os.devnull, "w")
-        self.app_creator().run(port=self._port_no)
 
 
 @pytest.fixture(scope="session")
