@@ -89,62 +89,17 @@ def dbsession(engine, tables):
 
 @pytest.fixture
 def test_depot(tmp_path):
-    depot = AswanDepot("TD1", tmp_path)
-    depot.setup(True)
-    yield depot
-    depot.purge()
+    return AswanDepot("TD1", tmp_path).setup(True)
 
 
 @pytest.fixture
-def test_project():
-    proj = Project("TP1")
-    proj.depot.purge()
-    yield proj
-    # proj.depot.purge()
-
-
-@pytest.fixture
-def test_project2():
-    proj = Project("TP2")
-    yield proj
-    proj.depot.purge()
+def test_project(tmp_path):
+    return Project("TP1", tmp_path)
 
 
 @pytest.fixture(scope="session")
 def test_proxy():
-
     ar = AppRunner(proxy_app_creator, proxy_port)
     ar.start()
     yield
     ar.stop()
-
-
-@pytest.fixture
-def env_auth_id(private_key_path: Path, tmp_path: Path):
-    rem_path, local_path = tmp_path / "remote", tmp_path / "local"
-    rem_path.mkdir()
-    local_path.mkdir()
-    test_dic = {
-        "rsa-keys": {"rsa-key-name": private_key_path.read_text()},
-        "ssh": {
-            "ssh-name-1": {
-                "host": Server.host,
-                "port": 22,
-                "user": TEST_USER,
-                "rsa_key": "rsa-key-name",
-            }
-        },
-        _CNAME: {"connection": "ssh-name-1", "path": rem_path.as_posix()},
-    }
-    pw = "AWPW7"
-    os.environ[PW_ENV] = pw
-    os.environ[HEX_ENV] = ZimmAuth.dumps_dict(test_dic, pw)
-    os.environ[DEFAULT_REMOTE_ENV_VAR] = _CNAME
-    os.environ[DEPOT_ROOT_ENV_VAR] = local_path.as_posix()
-    os.environ[LOCAL_HOST_NAMES_ENV_VAR] = Server.host
-    return _CNAME
-
-
-@pytest.fixture
-def godel_env(godel_test_app, env_auth_id):
-    return env_auth_id
