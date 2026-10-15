@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 HEADERS = {
@@ -15,14 +14,10 @@ HEADERS = {
 
 
 DEPOT_ROOT_ENV_VAR = "ASWAN_DEPOT_ROOT"
-DEFAULT_REMOTE_ENV_VAR = "ASWAN_REMOTE"
-HEX_ENV = "ASWAN_AUTH_HEX"
-PW_ENV = "ASWAN_AUTH_PASS"
+REMOTE_ENV_VAR = "ASWAN_REMOTE"
 DEFAULT_DEPOT_ROOT = Path.home() / "aswan-depots"
 CONFIG_PATH = Path.home() / ".config" / "aswan"
 
-
-url_root_regex = re.compile(r"^(?://|[^/]+)*/")
 
 ONE_MINUTE = 60
 ONE_HOUR = ONE_MINUTE * 60

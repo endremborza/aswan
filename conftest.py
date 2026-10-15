@@ -1,25 +1,49 @@
+import ctypes
+import multiprocessing as mp
 import os
+import signal
+import socket
 import sys
 import time
-from multiprocessing import Process
-from pathlib import Path
-from typing import Optional
 
 import pytest
 import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from zimmauth import ZimmAuth
-from zimmauth.core import LOCAL_HOST_NAMES_ENV_VAR
-from zimmauth.test_core import TEST_USER, Server, private_key_path
 
 from aswan import AswanDepot, Project
-from aswan.constants import DEFAULT_REMOTE_ENV_VAR, DEPOT_ROOT_ENV_VAR, HEX_ENV, PW_ENV
 from aswan.models import Base
 from aswan.tests.godel_src.app import godel_app_creator, test_app_default_port
 from aswan.tests.proxy_src import proxy_app_creator, proxy_port
 
-_CNAME = "ssh-conn"
+# Launch test servers with spawn: other tests build a Project (atqo's
+# MultiProcAPI), leaving worker threads alive, and forking from a multi-threaded
+# process is a deprecated, deadlock-prone pattern under Python 3.12+.
+_SPAWN = mp.get_context("spawn")
+
+
+def _die_with_parent():
+    """Linux: SIGKILL this server if pytest dies, so an interrupted run can't
+    leak a Flask process that keeps holding the port and poisons the next run."""
+    if sys.platform != "linux":
+        return
+    try:
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGKILL)
+    except Exception:
+        pass
+
+
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _run_app(app_creator, port_no, verbose):
+    _die_with_parent()
+    if not verbose:
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+    app_creator().run(port=port_no)
 
 
 class AppRunner:

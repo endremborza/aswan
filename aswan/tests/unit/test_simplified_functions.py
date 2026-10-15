@@ -1,13 +1,18 @@
-import os
-from pathlib import Path
-
 from bs4 import BeautifulSoup
 from requests.utils import default_headers
 
-import aswan
+from aswan import RequestSoupHandler
 from aswan.constants import DEPOT_ROOT_ENV_VAR
+from aswan.depot import AswanDepot
 from aswan.simplified_functions import get_json, get_soup, run_simple_project
 from aswan.tests.godel_src.app import test_app_default_address
+
+
+class _LinkHandler(RequestSoupHandler):
+    url_root = test_app_default_address
+
+    def parse(self, soup: BeautifulSoup):
+        return {"first_link": soup.find("a").text}
 
 
 def test_get_soup(godel_test_app):
@@ -23,25 +28,9 @@ def test_get_json(godel_test_app):
     assert d["A"] == 10
 
 
-def test_project_run(godel_env: str, tmp_path: Path):
-    os.environ[DEPOT_ROOT_ENV_VAR] = tmp_path.as_posix()
-
-    do_pushing = os.name != "nt"
-
-    run_simple_project(
-        {aswan.RequestHandler: [f"{test_app_default_address}/test_page/Axiom.html"]},
-        name="simp-test",
-        remote=do_pushing,
-        sync=True,
-    )
-
-    if not do_pushing:  # pragma: no cover
-        return
-    project = aswan.Project("simp-test", local_root=tmp_path / "other-thing")
-
-    project.depot.pull(godel_env, True)
-    project.depot.setup(True)
-
-    axiom_res = next(project.depot.get_handler_events(past_runs=1))
-    assert b"Axiom" in axiom_res.content
-    assert "Axiom" in axiom_res.__repr__()
+def test_run_simple_project(godel_test_app, tmp_path, monkeypatch):
+    monkeypatch.setenv(DEPOT_ROOT_ENV_VAR, str(tmp_path))
+    run_simple_project({_LinkHandler: ["/test_page/godel_wiki.html"]}, "simple-proj")
+    depot = AswanDepot("simple-proj", tmp_path)
+    contents = [ev.content for ev in depot.get_handler_events(_LinkHandler)]
+    assert {"first_link": "axiomatic"} in contents

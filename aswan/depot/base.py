@@ -159,8 +159,8 @@ class Current:
         return f
 
 
-class DepotBase:
-    def __init__(self, name: str, local_root: Optional[Path] = None) -> None:
+class AswanDepot:
+    def __init__(self, name: str, local_root: Path | str | None = None) -> None:
         self.name = name
         self.root = (
             Path(local_root or os.environ.get(DEPOT_ROOT_ENV_VAR) or DEFAULT_DEPOT_ROOT)

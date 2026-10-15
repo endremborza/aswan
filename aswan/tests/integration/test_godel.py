@@ -1,4 +1,3 @@
-import os
 from collections import Counter
 from functools import partial
 
@@ -7,16 +6,25 @@ import pytest
 import aswan
 import aswan.tests.godel_src.handlers as ghandlers
 
+from ..helpers import statuses
 
-def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Project):
+
+@pytest.mark.timeout(120)
+def test_godel(godel_test_app, test_proxy, test_project: aswan.Project, tmp_path):
     """
     missing to test:
     - cookies
     """
 
-    test_project.register_module(ghandlers)
-    test_project.run(test_run=True, keep_running=False, force_sync=True)
     depot = test_project.depot
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    replica = aswan.AswanDepot(depot.name, tmp_path / "replica")
+    replica.pull(str(remote))
+    assert replica.get_all_run_ids() == set()
+
+    test_project.register_module(ghandlers)
+    test_project.run(test_run=True, keep_running=False)
     _ghe = partial(depot.get_handler_events, from_current=True)
 
     assert next(_ghe(ghandlers.LinkRoot)).status == aswan.Statuses.PROCESSED
@@ -30,7 +38,6 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
 
     with pytest.raises(PermissionError):
         test_project.commit_current_run()
-    test_project.depot.current.purge()
 
     test_project.run(
         urls_to_register={
@@ -46,10 +53,11 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
         if pcev.status == aswan.Statuses.CONNECTION_ERROR
     ]
 
-    if os.name != "nt":
-        test_project.depot.push(env_auth_id)
     test_project.commit_current_run()
     assert len(test_project.depot.get_all_run_ids()) == 1
+    assert [*depot.get_handler_events(ghandlers.TestLoad, only_successful=False)] == []
+    depot.push(str(remote))
+
     test_project.run()
     assert len(test_project.depot.get_all_run_ids()) == 1
     test_project.commit_current_run()
@@ -61,6 +69,7 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
     )
     test_project.commit_current_run()
     assert len(test_project.depot.get_all_run_ids()) == 2
+    depot.push(str(remote))
 
     urlcount = Counter(
         [
@@ -77,5 +86,12 @@ def test_godel(godel_test_app, test_proxy, env_auth_id, test_project: aswan.Proj
         else:
             assert v == 1
 
-    if os.name != "nt":
-        test_project.depot.pull(env_auth_id)
+    replica.pull(str(remote))
+    assert replica.get_all_run_ids() == depot.get_all_run_ids()
+    assert _contents(replica) == _contents(depot)
+    assert statuses(replica) == statuses(depot)
+
+
+def _contents(depot: aswan.AswanDepot) -> list[tuple]:
+    events = depot.get_handler_events(only_successful=False, only_latest=False)
+    return sorted((e.handler_name, e.url, e.status, str(e.content)) for e in events)
