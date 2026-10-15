@@ -55,12 +55,6 @@ def run_and_log_functions(function_list: list, **kwargs):
         print(f"function {fun_name} returned {res}", kwargs)
 
 
-def get_url_root(url: str):
-    base = url_root_rex.findall(url)
-    if base:
-        return base[0]
-
-
 def add_url_params(url, params):
     url = unquote(url)
     parsed_url = urlparse(url)
