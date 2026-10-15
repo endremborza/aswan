@@ -226,16 +226,19 @@ class BrowserSession:
             prefs = {"profile.managed_default_content_settings.images": 2}
             chrome_options.add_experimental_option("prefs", prefs)
 
-        logger.info(f"launching browser: {chrome_options.arguments}")
+        logger.info("launching browser: %s", chrome_options.arguments)
         self.driver = Chrome(options=chrome_options)
         logger.info("browser running")
 
     def stop(self):
         try:
             logger.info("stopping browser")
-            self.driver.close()
-        except WebDriverException as e:  # pragma: no cover
-            logger.warning(f"could not stop browser: {e}")
+            # quit(), not close(): close() only drops the active window and
+            # leaves chromedriver + chrome running, leaking processes that pile
+            # up and wedge later browser launches.
+            self.driver.quit()
+        except Exception as e:  # pragma: no cover
+            logger.warning("could not stop browser: %s", e)
 
     def get_response_content(self, handler: ANY_HANDLER_T, url: str):
         self.driver.get(url)
