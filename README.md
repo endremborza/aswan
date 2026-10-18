@@ -16,7 +16,7 @@ uv add aswan
 uv add "aswan[soup,monitor]"
 ```
 
-Optional extras: `soup` (BeautifulSoup, needed by every `*SoupHandler`), `browser` (Selenium), `relay` (external-fetch bridge), `monitor` (Dash dashboard), `test`. Remote sync uses the system `rsync` binary and needs no extra.
+Optional extras: `soup` (BeautifulSoup, needed by every `*SoupHandler`), `browser` (Selenium), `relay` (external-fetch bridge), `monitor` (Dash dashboard), `legacy` (PyYAML, for `aswan migrate`), `test`. Remote sync uses the system `rsync` binary and needs no extra.
 
 ## Quick Start
 
@@ -279,8 +279,18 @@ def parse(self, soup):
 With the `monitor` extra, a Dash dashboard shows the current run of a depot: collection rates, handler status breakdowns, and recent events.
 
 ```bash
-uv run aswan my-project            # --root DIR, --port N, --interval SECS, --debug
+uv run aswan monitor my-project    # --root DIR, --port N, --interval SECS, --debug
 ```
+
+## Migrating a pre-1.0 depot
+
+A depot written before 1.0 keeps one zip file per object and YAML contexts, which the current object store cannot read. `aswan migrate` copies its runs into a current depot, re-storing every object the events name and rewriting their names:
+
+```bash
+uv run --extra legacy aswan migrate ~/old-depots/my-project ~/aswan-depots/my-project
+```
+
+The target is created if missing. Runs it already holds are skipped, so the same command resumes an interrupted migration, pulls new runs from a still-legacy live depot, and merges several copies of one depot into one target. The events of the legacy `current-run` become a run of their own. A run with a missing or unreadable object is not written: the summary lists it, and the command exits non-zero.
 
 ## Proxies
 

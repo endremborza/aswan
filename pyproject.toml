@@ -11,12 +11,13 @@ dependencies = [
     "atqo>=2.0.0",
     "dirark>=0.2.0"
 ]
-scripts = {aswan = "aswan.monitor_app:main"}
+scripts = {aswan = "aswan.cli:main"}
 [project.optional-dependencies]
 relay = ["flask", "flask-cors"]
 soup = ["beautifulsoup4"]
 browser = ["selenium"]
 monitor = ["pandas", "dash", "dash-bootstrap-components"]
+legacy = ["pyyaml"]
 test = ["branthebuilder", "pytest-timeout"]
 
 [project.urls]

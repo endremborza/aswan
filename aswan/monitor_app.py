@@ -141,22 +141,12 @@ class MonitorApp:
         return self.html.Tr([*map(self.html.Td, [*tds, link])])
 
 
-def main() -> None:
-    import argparse
-
+def serve(depot: AswanDepot, port: int, interval: int, debug: bool) -> None:
     try:
         import dash  # noqa: F401
     except ImportError:
         raise SystemExit("Install aswan[monitor] to use the dashboard.")
-    parser = argparse.ArgumentParser(description="Aswan monitoring dashboard")
-    parser.add_argument("project")
-    parser.add_argument("--root", default=None)
-    parser.add_argument("--port", type=int, default=6969)
-    parser.add_argument("--interval", type=int, default=30)
-    parser.add_argument("--debug", action="store_true")
-    args = parser.parse_args()
-    depot = AswanDepot(args.project, args.root)
-    MonitorApp(depot, args.interval).app.run(port=args.port, debug=args.debug)
+    MonitorApp(depot, interval).app.run(port=port, debug=debug)
 
 
 def parse_time(n: float):

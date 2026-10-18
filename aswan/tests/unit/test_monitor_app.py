@@ -4,7 +4,8 @@ import sys
 import pytest
 
 from aswan import AswanDepot
-from aswan.monitor_app import MonitorApp, main
+from aswan.cli import main
+from aswan.monitor_app import MonitorApp
 
 from ..helpers import get_cev
 
@@ -25,6 +26,6 @@ def test_monitor_app(test_depot: AswanDepot):
 
 def test_main_without_monitor_extra_names_the_extra(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "dash", None)
-    monkeypatch.setattr(sys, "argv", ["aswan", "proj", "--root", str(tmp_path)])
+    monkeypatch.setattr(sys, "argv", ["aswan", "monitor", "proj", "--root", str(tmp_path)])
     with pytest.raises(SystemExit, match=r"aswan\[monitor\]"):
         main()

@@ -46,6 +46,9 @@ dependencies = [
 browser = [
     { name = "selenium" },
 ]
+legacy = [
+    { name = "pyyaml" },
+]
 monitor = [
     { name = "dash" },
     { name = "dash-bootstrap-components" },
@@ -75,11 +78,12 @@ requires-dist = [
     { name = "flask-cors", marker = "extra == 'relay'" },
     { name = "pandas", marker = "extra == 'monitor'" },
     { name = "pytest-timeout", marker = "extra == 'test'" },
+    { name = "pyyaml", marker = "extra == 'legacy'" },
     { name = "requests" },
     { name = "selenium", marker = "extra == 'browser'" },
     { name = "sqlalchemy" },
 ]
-provides-extras = ["browser", "monitor", "relay", "soup", "test"]
+provides-extras = ["browser", "legacy", "monitor", "relay", "soup", "test"]
 
 [[package]]
 name = "atqo"
