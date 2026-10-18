@@ -39,13 +39,18 @@ class _Event:
     __name_keys__ = ["handler"]
     __name_prefix__ = ""
 
-    def dump(self, dir_path: Path):
+    def encode(self) -> tuple[str, bytes]:
+        """The file name and blob `dump` writes."""
         name_parts = map(_to_str, [getattr(self, k) for k in self.__name_keys__])
         blob_parts = map(_to_bytes, [getattr(self, k) for k in self._blob_keys()])
         blob = BLOB_JOIN.join(blob_parts)
         filename = NAME_JOIN.join(
             [self.__name_prefix__, *name_parts, md5(blob).hexdigest()]
         )
+        return filename, blob
+
+    def dump(self, dir_path: Path):
+        filename, blob = self.encode()
         (dir_path / filename).write_bytes(blob)
         return self
 

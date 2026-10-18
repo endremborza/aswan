@@ -95,6 +95,9 @@ class ObjectStore:
     def read_bytes(self, name: str) -> bytes:
         return self._blobs.read(_strip_ext(name))
 
+    def has(self, name: str) -> bool:
+        return self._blobs.has(_strip_ext(name))
+
 
 def _strip_ext(name: str) -> str:
     return name.rsplit(".", 1)[0]
