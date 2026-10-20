@@ -7,19 +7,20 @@ on:
   push:
     branches:
       - main
+  workflow_call:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      UV_NO_SOURCES: 1
     steps:
-    - uses: actions/checkout@v4
-    - uses: nanasess/setup-chromedriver@v2
-    - uses: astral-sh/setup-uv@v5
+    - uses: actions/checkout@v7
+    - uses: nanasess/setup-chromedriver@v3
+    - uses: astral-sh/setup-uv@v10.3.0
       with:
         python-version: '3.12'
         enable-cache: true
     - run: uv tool install branthebuilder
-    - name: Install
-      run: uv pip install --system -e .[test,monitor]
-    - name: Test
-      run: branb test --v
+    - run: uv sync --all-extras
+    - run: branb test --v
