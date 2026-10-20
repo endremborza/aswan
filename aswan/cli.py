@@ -1,40 +1,59 @@
 """The `aswan` command."""
 
-import argparse
 import logging
 from pathlib import Path
+from typing import Annotated
 
-from .depot import AswanDepot
+from protocli import FILES, Complete, Dispatcher
+
+from .depot import AswanDepot, depot_root
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(prog="aswan")
-    sub = parser.add_subparsers(dest="command", required=True)
-    mon = sub.add_parser("monitor", help="serve the collection dashboard")
-    mon.add_argument("project")
-    mon.add_argument("--root", default=None)
-    mon.add_argument("--port", type=int, default=6969)
-    mon.add_argument("--interval", type=int, default=30)
-    mon.add_argument("--debug", action="store_true")
-    mig = sub.add_parser(
-        "migrate",
-        help="copy the runs of a pre-1.0 depot into a current one",
-        description="Copy the runs of the pre-1.0 depot LEGACY that the depot"
-        " TARGET lacks, re-storing their objects; created if missing.",
-    )
-    mig.add_argument("legacy", type=Path)
-    mig.add_argument("target", type=Path)
-    args = parser.parse_args()
-    if args.command == "monitor":
-        from .monitor_app import serve
+def _depot_names() -> list[str]:
+    root = depot_root()
+    return sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
 
-        serve(AswanDepot(args.project, args.root), args.port, args.interval, args.debug)
-    else:
-        from .legacy import migrate_depot
 
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-        target = args.target.absolute()
-        report = migrate_depot(args.legacy, AswanDepot(target.name, target.parent))
-        print(report)
-        if report.broken:
-            raise SystemExit(1)
+def _monitor(
+    project: Annotated[str, Complete(_depot_names)],
+    *,
+    root: Annotated[str | None, FILES] = None,
+    port: int = 6969,
+    interval: int = 30,
+    debug: bool = False,
+) -> None:
+    """Serve the collection dashboard.
+
+    Args:
+        project: depot name
+        root: directory holding the depot, ASWAN_DEPOT_ROOT or the default
+            when omitted
+        port: port to serve on
+        interval: refresh interval in seconds
+        debug: run the server in debug mode
+    """
+    from .monitor_app import serve
+
+    serve(AswanDepot(project, root), port, interval, debug)
+
+
+def _migrate(
+    legacy: Annotated[Path, FILES], target: Annotated[Path, FILES]
+) -> int | None:
+    """Copy the runs of a pre-1.0 depot into a current one.
+
+    Args:
+        legacy: pre-1.0 depot directory
+        target: current depot directory, created if missing; only the runs it
+            lacks are copied, their objects re-stored
+    """
+    from .legacy import migrate_depot
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    target = target.absolute()
+    report = migrate_depot(legacy, AswanDepot(target.name, target.parent))
+    print(report)
+    return 1 if report.broken else None
+
+
+main = Dispatcher("aswan", {"monitor": _monitor, "migrate": _migrate}).run

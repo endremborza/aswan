@@ -9,14 +9,15 @@ dependencies = [
     "requests",
     "sqlalchemy",
     "atqo>=2.0.0",
-    "dirark>=0.2.0"
+    "dirark>=0.2.0",
+    "protocli",
 ]
 scripts = {aswan = "aswan.cli:main"}
 [project.optional-dependencies]
 relay = ["flask", "flask-cors"]
 soup = ["beautifulsoup4"]
 browser = ["selenium"]
-monitor = ["pandas", "dash", "dash-bootstrap-components"]
+monitor = ["dash", "dash-bootstrap-components"]
 legacy = ["pyyaml"]
 test = ["branthebuilder", "pytest-timeout"]
 
@@ -30,6 +31,7 @@ build-backend = "flit_core.buildapi"
 [tool.uv.sources]
 dirark = { path = "../dirark", editable = true }
 atqo = { path = "../atqo", editable = true }
+protocli = { path = "../protocli", editable = true }
 
 [tool.pytest.ini_options]
 addopts = "-s --timeout=30 --timeout-method=thread"
