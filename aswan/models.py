@@ -1,9 +1,9 @@
 import datetime as dt
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from functools import total_ordering
 from hashlib import md5
 from pathlib import Path
-from collections.abc import Callable, Iterable
 
 import sqlalchemy as db
 from sqlalchemy.orm import declarative_base

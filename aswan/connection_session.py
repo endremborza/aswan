@@ -13,7 +13,8 @@ from .constants import (
     Statuses,
 )
 from .depot import AswanDepot
-from .exceptions import AswanConnectionError as ConnectionError, BrokenSessionError
+from .exceptions import AswanConnectionError as ConnectionError
+from .exceptions import BrokenSessionError
 from .models import CollEvent
 from .security import DEFAULT_PROXY, ProxyBase
 from .url_handler import (

@@ -8,9 +8,9 @@ import aswan
 from aswan.constants import Statuses
 from aswan.depot.base import (
     CONTEXT_JSON,
-    Run,
     STATUS_DB_ZIP,
     STATUS_RUNS_JSON,
+    Run,
     get_sorted_coll_events,
 )
 from aswan.models import CollEvent

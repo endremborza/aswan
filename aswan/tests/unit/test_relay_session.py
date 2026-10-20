@@ -6,6 +6,7 @@ import pytest
 import requests
 
 import aswan
+from aswan._relay_session import RelaySession
 from aswan.constants import (
     RELAY_CONTENT_K,
     RELAY_PORT,
@@ -13,7 +14,6 @@ from aswan.constants import (
     RELAY_URL_K,
     RELAY_URL_ROUTE,
 )
-from aswan._relay_session import RelaySession
 from aswan.url_handler import RelayHandler
 
 _URL = "url1"

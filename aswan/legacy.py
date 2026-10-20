@@ -30,6 +30,7 @@ from pathlib import Path
 
 from dirark import blob_checksum
 
+from .constants import Statuses
 from .depot.base import (
     CONTEXT_JSON,
     EVENTS_ZIP,
@@ -39,7 +40,6 @@ from .depot.base import (
     _run_start_ts,
     _zipfile_open,
 )
-from .constants import Statuses
 from .models import BLOB_JOIN, CollEvent, partial_read
 
 log = logging.getLogger(__name__)

@@ -17,7 +17,7 @@ get_cev = partial(
 
 
 def seed_run(depot: AswanDepot, **cev_kwargs) -> None:
-    """Commit one run that registers and collects one url; leaves depot ready for more."""
+    """Commit one run registering and collecting one url; the depot takes more."""
     cev = get_cev(**cev_kwargs)
     depot.current.integrate_events([RegEvent(cev.url, cev.handler), cev])
     depot.save_current()

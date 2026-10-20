@@ -27,6 +27,8 @@ def test_monitor_app(test_depot: AswanDepot):
 
 def test_main_without_monitor_extra_names_the_extra(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "dash", None)
-    monkeypatch.setattr(sys, "argv", ["aswan", "monitor", "proj", "--root", str(tmp_path)])
+    monkeypatch.setattr(
+        sys, "argv", ["aswan", "monitor", "proj", "--root", str(tmp_path)]
+    )
     with pytest.raises(SystemExit, match=r"aswan\[monitor\]"):
         main()

@@ -44,3 +44,6 @@ source = ["aswan"]
 concurrency = ["multiprocessing", "thread"]
 parallel = true
 sigterm = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

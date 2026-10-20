@@ -1,6 +1,6 @@
 from collections import defaultdict
-from functools import partial
 from collections.abc import Iterable
+from functools import partial
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
