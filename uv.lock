@@ -68,15 +68,15 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atqo", editable = "../atqo" },
+    { name = "atqo", specifier = ">=2.0.0" },
     { name = "beautifulsoup4", marker = "extra == 'soup'" },
     { name = "branthebuilder", marker = "extra == 'test'" },
     { name = "dash", marker = "extra == 'monitor'" },
     { name = "dash-bootstrap-components", marker = "extra == 'monitor'" },
-    { name = "dirark", editable = "../dirark" },
+    { name = "dirark", specifier = ">=0.2.0" },
     { name = "flask", marker = "extra == 'relay'" },
     { name = "flask-cors", marker = "extra == 'relay'" },
-    { name = "protocli", editable = "../protocli" },
+    { name = "protocli" },
     { name = "pytest-timeout", marker = "extra == 'test'" },
     { name = "pyyaml", marker = "extra == 'legacy'" },
     { name = "requests" },
@@ -87,18 +87,11 @@ provides-extras = ["browser", "legacy", "monitor", "relay", "soup", "test"]
 
 [[package]]
 name = "atqo"
-source = { editable = "../atqo" }
-
-[package.metadata]
-requires-dist = [{ name = "tqdm", marker = "extra == 'fancy'" }]
-provides-extras = ["fancy"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "pytest-timeout", specifier = ">=2.3.1" },
-    { name = "tqdm", specifier = ">=4.66.0" },
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/ff/19e3bdb960cbc93d7fb90094179cf78b04663872e333c18983407f547eba/atqo-2.1.0.tar.gz", hash = "sha256:19fa5f3ac710e363396bcaed89b1b879c4d08882084fa9236460c722bc28fe9d", size = 38064, upload-time = "2026-10-20T10:02:58.163Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/4d/faffc462039f01c569855db50c8147e7bac3a310f794522593f38b040089/atqo-2.1.0-py3-none-any.whl", hash = "sha256:ec095120e5757f08471d395e62b2644d636a381d72b2faae3ce4f54d40244cb9", size = 34606, upload-time = "2026-10-20T10:02:57.297Z" },
 ]
 
 [[package]]
@@ -421,19 +414,14 @@ wheels = [
 
 [[package]]
 name = "dirark"
-source = { editable = "../dirark" }
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protocli" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "protocli" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "pytest-timeout", specifier = ">=2.3.1" },
+sdist = { url = "https://files.pythonhosted.org/packages/76/89/de5eeadde0b127e3d35f8f556eaff9062914ba8b5572ebe33afc447e33da/dirark-0.4.1.tar.gz", hash = "sha256:75b3299d227b4557957520014464773346584d95ef8e917655f7191a0c5cc42f", size = 31948, upload-time = "2026-10-20T09:54:03.894Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/60/1a68f19b5994ed2235818d7c1dea7c95aecadb207db10eeab2bc2f03443b/dirark-0.4.1-py3-none-any.whl", hash = "sha256:67323308059db0861e6f78a62e66a623810d5bfaba452f391d80225f899ff974", size = 24336, upload-time = "2026-10-20T09:54:03.013Z" },
 ]
 
 [[package]]
@@ -728,12 +716,12 @@ wheels = [
 
 [[package]]
 name = "protocli"
-source = { editable = "../protocli" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/f0/e01a1bb87d9d42718cf5a0fb3517c977535a54914e948a09811d20609340/protocli-0.3.0.tar.gz", hash = "sha256:591587dd05058d5ba7789a1245e43b4cf64d438db31568fcdb4544948f7dc2f3", size = 14387, upload-time = "2026-10-19T22:53:50.972Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/57/2a9fad82e2457df09b49571c1b2c564bf64bfa813f55d92f25f1ffdce09b/protocli-0.3.0-py3-none-any.whl", hash = "sha256:ffeed598a0123aa090aebfa4f45097f9b2cdb019e075182bfc939aae25c16458", size = 12897, upload-time = "2026-10-19T22:53:50.018Z" },
+]
 
 [[package]]
 name = "pycparser"
