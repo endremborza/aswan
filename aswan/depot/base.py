@@ -164,13 +164,15 @@ class Current:
         return f
 
 
+def depot_root(local_root: Path | str | None = None) -> Path:
+    """The directory holding depots: ``local_root``, else the env var, else the default."""
+    return Path(local_root or os.environ.get(DEPOT_ROOT_ENV_VAR) or DEFAULT_DEPOT_ROOT)
+
+
 class AswanDepot:
     def __init__(self, name: str, local_root: Path | str | None = None) -> None:
         self.name = name
-        self.root = (
-            Path(local_root or os.environ.get(DEPOT_ROOT_ENV_VAR) or DEFAULT_DEPOT_ROOT)
-            / name
-        )
+        self.root = depot_root(local_root) / name
         self.object_store_path = self.root / "object-store"
         self.object_store = ObjectStore(self.object_store_path)
         self.runs_path = self.root / "runs"
