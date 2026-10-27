@@ -1,3 +1,9 @@
+## v1.0.1
+
+tighten reqs
+
+---
+
 ## v1.0.0
 
 - **Breaking:** requires Python ≥3.12 (previously ≥3.10).
