@@ -68,12 +68,12 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atqo", specifier = ">=2.0.0" },
+    { name = "atqo", specifier = ">=2.1.0" },
     { name = "beautifulsoup4", marker = "extra == 'soup'" },
     { name = "branthebuilder", marker = "extra == 'test'" },
     { name = "dash", marker = "extra == 'monitor'" },
     { name = "dash-bootstrap-components", marker = "extra == 'monitor'" },
-    { name = "dirark", specifier = ">=0.2.0" },
+    { name = "dirark", specifier = ">=0.4.1,<0.5" },
     { name = "flask", marker = "extra == 'relay'" },
     { name = "flask-cors", marker = "extra == 'relay'" },
     { name = "protocli" },

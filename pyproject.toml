@@ -8,8 +8,8 @@ requires-python = ">=3.12"
 dependencies = [
     "requests",
     "sqlalchemy",
-    "atqo>=2.0.0",
-    "dirark>=0.2.0",
+    "atqo>=2.1.0",
+    "dirark>=0.4.1,<0.5",
     "protocli",
 ]
 scripts = {aswan = "aswan.cli:main"}
